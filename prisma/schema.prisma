@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model SystemSetting {
+  id                           String     @id @default(uuid())
+  adminUserId                  String?    @unique
+  adminUser                    AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  isPaymentEnabled             Boolean    @default(true)
+  updatedAt                    DateTime   @updatedAt
+  frameSelectionTimer          Int        @default(5)
+  isFrameSelectionEnabled      Boolean    @default(true)
+  isFrameSelectionTimerEnabled Boolean    @default(true)
+  isPhotoSelectionEnabled      Boolean    @default(true)
+  isPhotoSelectionTimerEnabled Boolean    @default(true)
+  isPhotoSessionEnabled        Boolean    @default(true)
+  isPhotoSessionTimerEnabled   Boolean    @default(true)
+  isPhotoFilterEnabled         Boolean    @default(true)
+  isPhotoFilterTimerEnabled    Boolean    @default(true)
+  isResultEnabled              Boolean    @default(true)
+  isResultTimerEnabled         Boolean    @default(true)
+  photoSelectionTimer          Int        @default(3)
+  photoFilterTimer             Int        @default(3)
+  photoSessionTimer            Int        @default(3)
+  captureTimer                 Int        @default(5)
+  maxCapturePhotos             Int        @default(8)
+  resultTimer                  Int        @default(60)
+  enabledFilters               Json       @default("[\"original\", \"bw\", \"sepia\", \"cool\", \"warm\", \"vivid\", \"vintage-warm\", \"cinematic\", \"pastel\", \"dramatic\", \"noir-contrast\", \"golden-hour\", \"matte\", \"clean-pop\", \"emerald\"]")
+  isGoogleDriveBackupEnabled   Boolean    @default(true)
+  photoRetentionDays           Int        @default(7)
+  isKioskLocked                Boolean    @default(false)
+
+  // Custom Aesthetics & Theme Fields (Nullable for default visual fallback)
+  kioskThemePreset             String     @default("default")
+  kioskAccentColor             String?
+  kioskBgGradientStart         String?
+  kioskBgGradientEnd           String?
+  kioskBrandName               String?
+  kioskWelcomeMessage          String?
+  kioskFontFamily              String?
+  kioskLogoUrl                 String?
+}
+
+model FrameTheme {
+  id          String   @id @default(uuid())
+  userName    String?  @default("system")
+  name        String
+  previewUrl  String
+  description String?
+  tag         String?
+  price       Int      @default(5000)
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  frames      Frame[]
+
+  @@index([userName])
+}
+
+model Frame {
+  id            String     @id @default(uuid())
+  themeId       String
+  name          String
+  imageUrl      String
+  previewUrl    String
+  price         Int        @default(5000)
+  outputWidth   Int        @default(1080)
+  outputHeight  Int        @default(1920)
+  slots         Json
+  framePosition String     @default("overlay")
+  isActive      Boolean    @default(true)
+  order         Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  maxSlots      Int        @default(4)
+  padding       Float      @default(0)
+  theme         FrameTheme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+}
+
+model PrintOrder {
+  id            String    @id @default(uuid())
+  userName      String
+  adminUserId   String?
+  adminUser     AdminUser? @relation(fields: [adminUserId], references: [id])
+  customerEmail String?
+  customerPhone String?
+  frameId       String
+  frameName     String
+  quantity      Int
+  pricePerFrame Int
+  totalPrice    Int
+  costPrice     Int       @default(2500)
+  imageUrl      String
+  paymentUrl    String?
+  paymentStatus String    @default("pending")
+  printedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([createdAt])
+  @@index([userName])
+  @@index([adminUserId])
+}
+
+model AdminUser {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  name             String?
+  password         String?
+  role             String   @default("KARYAWAN")
+  provider         String   @default("credentials")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  canInputCapital  Boolean  @default(false)
+  canManageThemes  Boolean  @default(false)
+  canManageFilters Boolean  @default(false)
+  isPaymentEnabled Boolean        @default(false)
+  initialCapital   Int            @default(0)
+  apiKey           String?        @unique
+  settings         SystemSetting?
+  printOrders      PrintOrder[]
+  auditLogs        AuditLog[]
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  userEmail  String
+  action     String   // CREATE, UPDATE, DELETE, LOGIN, SETTINGS_CHANGE, etc.
+  resource   String   // theme, frame, user, settings, etc.
+  resourceId String?
+  details    String
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+}
