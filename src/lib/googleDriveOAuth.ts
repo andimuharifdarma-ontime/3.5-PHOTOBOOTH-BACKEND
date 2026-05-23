@@ -7,9 +7,12 @@ import { google } from 'googleapis';
 
 // Setup OAuth2 Client
 function getOAuth2Client() {
-  const redirectUri = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || 
-                      process.env.GOOGLE_REDIRECT_URI || 
-                      'http://localhost:3000/api/auth/google/callback';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+                      process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI;
+  
+  if (!redirectUri) {
+    console.warn('⚠️ GOOGLE_REDIRECT_URI is not set in environment variables! Falling back to http://localhost:3000/api/auth/google/callback');
+  }
   
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
