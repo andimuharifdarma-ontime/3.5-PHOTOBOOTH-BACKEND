@@ -19,7 +19,8 @@ import {
     ClipboardList,
     Filter,
     Paintbrush,
-    Menu
+    Menu,
+    Images
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -52,6 +53,7 @@ export const navItems = [
     { href: '/admin/users', icon: Users, label: 'Kelola Akun', roles: ['ADMIN'], category: 'SYSTEM' },
     { href: '/admin/kiosk-themes', icon: Paintbrush, label: 'Kustomisasi Kiosk', roles: ['ADMIN'], category: 'SYSTEM' },
     { href: '/admin/oauth-setup', icon: Cloud, label: 'Cloud Backup', roles: ['ADMIN'], category: 'SYSTEM' },
+    { href: '/admin/cloud-gallery', icon: Images, label: 'Galeri Cloud', roles: ['ADMIN'], category: 'SYSTEM' },
 ];
 
 export default function Sidebar({
