@@ -226,32 +226,7 @@ export default function SettingsPage() {
                         <span className="text-[10px] font-bold uppercase tracking-widest">Business Mode & Payment</span>
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-[#EAE1D3] shadow-md overflow-hidden">
-                        <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="font-sans font-bold text-2xl text-[#4A3F35]">Fitur Pembayaran (QRIS/VA)</h3>
-                                    {settings?.isPaymentEnabled ? (
-                                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[8px] font-bold uppercase tracking-widest rounded-full flex items-center gap-1">
-                                            <Check className="w-2 h-2" /> Paid Mode
-                                        </span>
-                                    ) : (
-                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px] font-bold uppercase tracking-widest rounded-full">Free Mode</span>
-                                    )}
-                                </div>
-                                <p className="text-xs text-[#8C7E6A] leading-relaxed max-w-xl">
-                                    Aktifkan mode berbayar untuk mewajibkan pelanggan membayar via QRIS/VA sebelum mencetak foto. Jika dinonaktifkan, photobooth akan berjalan dalam mode gratis.
-                                </p>
-                            </div>
 
-                            <button
-                                onClick={() => updateSetting('isPaymentEnabled', !settings?.isPaymentEnabled)}
-                                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ring-offset-2 ring-[#A68B67]/20 focus:ring-2 ${settings?.isPaymentEnabled ? 'bg-[#A68B67]' : 'bg-[#EAE1D3]'}`}
-                            >
-                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${settings?.isPaymentEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
-                            </button>
-                        </div>
-                    </div>
 
                     <div className="bg-white rounded-2xl border border-[#EAE1D3] shadow-md overflow-hidden">
                         <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">

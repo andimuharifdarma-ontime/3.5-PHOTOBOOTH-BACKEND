@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, RefreshCw, FolderDown, Image as ImageIcon, Video, FileJson, Play } from 'lucide-react';
+import { Download, RefreshCw, FolderDown, Image as ImageIcon, Video, FileJson, Play, Trash2, Clock, Cloud } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,12 +15,25 @@ type SupabaseFile = {
 
 type FileCategory = 'Picture' | 'Original' | 'GIF' | 'Live Photos';
 
+type CleanupResult = {
+  success: boolean;
+  deleted: number;
+  checked: number;
+  retentionDays: number;
+  cutoffDate: string;
+  folders: Record<string, { checked: number; deleted: number }>;
+};
+
 export default function CloudGalleryPage() {
     const [activeTab, setActiveTab] = useState<FileCategory>('Picture');
     const [files, setFiles] = useState<SupabaseFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isZipping, setIsZipping] = useState(false);
     const [zipProgress, setZipProgress] = useState(0);
+    const [photoRetentionDays, setPhotoRetentionDays] = useState<number>(7);
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
+    const [showConfirmCleanup, setShowConfirmCleanup] = useState(false);
 
     const fetchFiles = async () => {
         setIsLoading(true);
@@ -51,7 +64,30 @@ export default function CloudGalleryPage() {
 
     useEffect(() => {
         fetchFiles();
+        fetch('/api/admin/cleanup-storage')
+            .then(r => r.json())
+            .then(data => {
+                if (data.photoRetentionDays) setPhotoRetentionDays(data.photoRetentionDays);
+            })
+            .catch(console.error);
     }, []);
+
+    const handleCleanup = async () => {
+        setIsCleaning(true);
+        setCleanupResult(null);
+        setShowConfirmCleanup(false);
+        try {
+            const res = await fetch('/api/admin/cleanup-storage', { method: 'POST' });
+            const data = await res.json();
+            setCleanupResult(data);
+            fetchFiles();
+        } catch (error) {
+            console.error('Cleanup failed', error);
+            alert('Gagal membersihkan storage. Silakan coba lagi.');
+        } finally {
+            setIsCleaning(false);
+        }
+    };
 
     const categorizedFiles = () => {
         return files.filter(f => {
@@ -145,39 +181,78 @@ export default function CloudGalleryPage() {
 
     return (
         <div className="p-8 pb-32 max-w-7xl mx-auto min-h-screen">
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-serif italic text-white mb-2">Cloud Gallery</h1>
-                    <p className="text-[#A68B67] text-xs font-black uppercase tracking-[0.2em]">Pusat Backup & Manajemen Aset Studio</p>
+            <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1C1917] via-[#292524] to-[#1C1917] p-8 md:p-12 shadow-2xl shadow-black/20 mb-8">
+                <div className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[linear-gradient(to_right,#A68B67_1px,transparent_1px),linear-gradient(to_bottom,#A68B67_1px,transparent_1px)] [background-size:32px_32px]" />
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#A68B67]/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
+                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-[#4A3F35]/20 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/4" />
+
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+                    <div className="space-y-4 flex-1">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#A68B67] to-[#8C7E6A] flex items-center justify-center shadow-lg shadow-[#A68B67]/20">
+                                <Cloud className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#A68B67]/80">Cloud Backup</span>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-sans font-extrabold text-white tracking-tight font-serif italic">
+                            Cloud <span className="text-[#A68B67]">Gallery</span>
+                        </h1>
+                        <p className="text-white/40 font-medium text-lg max-w-xl">
+                            Pusat Backup & Manajemen Aset Studio
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2 px-4 py-3 bg-white/[0.06] backdrop-blur-md border border-white/10 rounded-lg">
+                            <Clock className="w-4 h-4 text-[#A68B67]" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-white/60">
+                                Retensi <span className="text-[#A68B67]">{photoRetentionDays}</span> hari
+                            </span>
+                            {cleanupResult && (
+                                <span className="text-[10px] font-bold text-emerald-400 ml-2">
+                                    ✓ {cleanupResult.deleted} file dihapus
+                                </span>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={() => setShowConfirmCleanup(true)}
+                            disabled={isCleaning}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white rounded-lg shadow-lg hover:opacity-90 transition-all disabled:opacity-50"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-xs font-black uppercase tracking-wider">
+                                {isCleaning ? 'Membersihkan...' : 'Bersihkan Storage Cloud'}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={fetchFiles}
+                            disabled={isLoading}
+                            className="flex items-center gap-2 px-6 py-3 bg-white/[0.06] backdrop-blur-md border border-white/10 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-all disabled:opacity-50"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                            <span className="text-xs font-black uppercase tracking-wider">Sync Data</span>
+                        </button>
+                        <button
+                            onClick={handleDownloadZip}
+                            disabled={isZipping || currentList.length === 0}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#A68B67] to-[#8C7E6A] text-white rounded-lg shadow-lg hover:opacity-90 transition-all disabled:opacity-50 relative overflow-hidden"
+                        >
+                            <FolderDown className="w-4 h-4 relative z-10" />
+                            <span className="text-xs font-black uppercase tracking-wider relative z-10">
+                                {isZipping ? `Zipping ${zipProgress}%...` : 'Unduh ZIP'}
+                            </span>
+                            {isZipping && (
+                                <div 
+                                    className="absolute left-0 top-0 bottom-0 bg-white/20 z-0" 
+                                    style={{ width: `${zipProgress}%` }}
+                                />
+                            )}
+                        </button>
+                    </div>
                 </div>
-                
-                <div className="flex gap-4">
-                    <button
-                        onClick={fetchFiles}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 px-6 py-3 bg-[#1C1917] border border-white/10 text-white rounded-lg hover:bg-white/5 transition-all disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        <span className="text-xs font-black uppercase tracking-wider">Sync Data</span>
-                    </button>
-                    <button
-                        onClick={handleDownloadZip}
-                        disabled={isZipping || currentList.length === 0}
-                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#A68B67] to-[#8C7E6A] text-white rounded-lg shadow-lg hover:opacity-90 transition-all disabled:opacity-50 relative overflow-hidden"
-                    >
-                        <FolderDown className="w-4 h-4 relative z-10" />
-                        <span className="text-xs font-black uppercase tracking-wider relative z-10">
-                            {isZipping ? `Zipping ${zipProgress}%...` : 'Unduh ZIP'}
-                        </span>
-                        {isZipping && (
-                            <div 
-                                className="absolute left-0 top-0 bottom-0 bg-white/20 z-0" 
-                                style={{ width: `${zipProgress}%` }}
-                            />
-                        )}
-                    </button>
-                </div>
-            </div>
+            </header>
 
             {renderTabs()}
 
@@ -262,6 +337,36 @@ export default function CloudGalleryPage() {
                             );
                         })}
                     </AnimatePresence>
+                </div>
+            )}
+
+            {showConfirmCleanup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#1C1917] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+                        <div className="text-center">
+                            <div className="w-16 h-16 rounded-full bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                                <Trash2 className="w-8 h-8 text-red-400" />
+                            </div>
+                            <h3 className="text-xl font-serif italic text-white mb-2">Bersihkan Storage Cloud?</h3>
+                            <p className="text-white/50 text-sm mb-6">
+                                Foto dan video yang lebih tua dari <span className="text-[#A68B67] font-bold">{photoRetentionDays} hari</span> akan dihapus permanen dari storage. Tindakan ini tidak bisa dibatalkan.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowConfirmCleanup(false)}
+                                    className="flex-1 px-6 py-3 bg-[#1C1917] border border-white/10 text-white rounded-lg hover:bg-white/5 transition-all text-xs font-black uppercase tracking-wider"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={handleCleanup}
+                                    className="flex-1 px-6 py-3 bg-red-700 text-white rounded-lg hover:bg-red-600 transition-all text-xs font-black uppercase tracking-wider"
+                                >
+                                    Ya, Bersihkan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

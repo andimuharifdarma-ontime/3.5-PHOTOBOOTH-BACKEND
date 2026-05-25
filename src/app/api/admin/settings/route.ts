@@ -91,7 +91,21 @@ export async function GET(request: Request) {
         const userId = (session.user as any).id;
         const userRole = (session.user as any).role;
         const targetUserId = searchParams.get('userId');
-        const fetchUserId = (userRole === 'ADMIN' && targetUserId) ? targetUserId : userId;
+        const targetUserName = searchParams.get('userName');
+
+        let fetchUserId = userId;
+        if (userRole === 'ADMIN' || userRole === 'KARYAWAN') {
+            if (targetUserId) {
+                fetchUserId = targetUserId;
+            } else if (targetUserName) {
+                const targetUser = await prisma.adminUser.findFirst({
+                    where: { name: targetUserName }
+                });
+                if (targetUser) {
+                    fetchUserId = targetUser.id;
+                }
+            }
+        }
 
         // Fetch User and their personal payment settings in one query to reduce connection pool pressure
         let adminUser = await prisma.adminUser.findUnique({ where: { id: fetchUserId } });
@@ -142,8 +156,8 @@ export async function GET(request: Request) {
             }) as any);
         }
 
-        // Force user-level payment setting for non-admins so the photobooth reads the correct access state
-        if (setting && userRole !== 'ADMIN') {
+        // Force user-level payment setting so the dashboard and photobooth read the correct access state
+        if (setting) {
             setting.isPaymentEnabled = isPaymentEnabledUserLevel;
         }
 

@@ -112,6 +112,37 @@ export async function createDailyFolder() {
 }
 
 /**
+ * Hapus folder beserta seluruh isinya dari Google Drive
+ */
+export async function deleteFolder(folderId: string) {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    });
+
+    const drive = google.drive({ version: 'v3', auth });
+
+    await drive.files.delete({
+      fileId: folderId,
+      supportsAllDrives: true,
+    });
+
+    console.log('🗑️ Folder deleted from Google Drive (Service Account):', folderId);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error deleting folder:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * List files di folder tertentu
  */
 export async function listFiles(folderId?: string) {

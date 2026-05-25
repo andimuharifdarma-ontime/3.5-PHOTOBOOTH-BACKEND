@@ -115,6 +115,30 @@ export async function uploadToGoogleDriveOAuth(
 }
 
 /**
+ * Delete folder dan seluruh isinya dari Google Drive (OAuth)
+ */
+export async function deleteFolderOAuth(folderId: string) {
+  try {
+    const oauth2Client = getOAuth2Client();
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    await drive.files.delete({
+      fileId: folderId,
+      supportsAllDrives: true,
+    });
+
+    console.log('🗑️ Folder deleted from Google Drive (OAuth):', folderId);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error deleting folder (OAuth):', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * Buat folder dengan nama tanggal (OAuth)
  */
 export async function createDailyFolderOAuth() {

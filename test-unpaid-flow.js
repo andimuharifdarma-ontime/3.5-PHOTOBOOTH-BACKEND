@@ -104,8 +104,8 @@ async function testUnpaidFlow() {
     });
     console.log('Inserted order ID:', newOrder.id);
     
-    console.log('4. Calling status API on localhost:3001...');
-    const resStatus = await fetch(`http://localhost:3001/api/payment/status/${orderId}`);
+    console.log('4. Calling status API on localhost:3003...');
+    const resStatus = await fetch(`http://localhost:3003/api/payment/status/${orderId}`);
     const statusData = await resStatus.json();
     console.log('Status API Response:', JSON.stringify(statusData, null, 2));
     

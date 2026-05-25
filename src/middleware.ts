@@ -107,6 +107,7 @@ function getAllowedOrigin(req: NextRequest): string {
         process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:3003',
         // Electron app uses file:// protocol or custom scheme
         'app://.',
     ];

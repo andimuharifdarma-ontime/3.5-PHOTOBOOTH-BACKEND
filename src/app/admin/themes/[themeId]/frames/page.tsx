@@ -31,6 +31,7 @@ interface Frame {
 
 interface Theme {
     id: string;
+    userName: string | null;
     name: string;
     price: number;
     frames: Frame[];
@@ -70,17 +71,20 @@ export default function ThemeFramesPage() {
 
     useEffect(() => {
         fetchTheme();
-        fetchSettings();
         fetchProfile();
 
         // Auto-refresh settings every 30 seconds for live sync
         const interval = setInterval(() => {
-            fetchSettings();
+            if (theme?.userName) {
+                fetchSettings(theme.userName);
+            } else {
+                fetchSettings();
+            }
             fetchProfile();
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [themeId]);
+    }, [themeId, theme?.userName]);
 
     const fetchProfile = async () => {
         try {
@@ -94,7 +98,7 @@ export default function ThemeFramesPage() {
         }
     };
 
-    const fetchSettings = async () => {
+    const fetchSettings = async (themeOwnerName?: string) => {
         const role = userProfile?.role || (session?.user as any)?.role;
         const userIsPaymentEnabled = userProfile?.isPaymentEnabled !== undefined
             ? userProfile.isPaymentEnabled
@@ -106,7 +110,10 @@ export default function ThemeFramesPage() {
         }
 
         try {
-            const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+            const url = themeOwnerName
+                ? `/api/admin/settings?userName=${encodeURIComponent(themeOwnerName)}`
+                : '/api/admin/settings';
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 setIsPaymentEnabled(data.isPaymentEnabled !== false);
@@ -122,6 +129,9 @@ export default function ThemeFramesPage() {
             if (res.ok) {
                 const data = await res.json();
                 setTheme(data);
+                if (data.userName) {
+                    fetchSettings(data.userName);
+                }
             } else {
                 router.push('/admin/themes');
             }

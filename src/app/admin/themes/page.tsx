@@ -80,7 +80,7 @@ export default function ThemesPage() {
         if (userProfile) {
             fetchSettings();
         }
-    }, [userProfile]);
+    }, [userProfile, selectedUser]);
 
     useEffect(() => {
         if (userProfile || session?.user) {
@@ -119,7 +119,8 @@ export default function ThemesPage() {
         }
 
         try {
-            const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+            const url = selectedUser ? `/api/admin/settings?userId=${selectedUser.id}` : '/api/admin/settings';
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 setIsPaymentEnabled(data.isPaymentEnabled !== false);
