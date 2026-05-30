@@ -151,7 +151,8 @@ export async function GET(request: Request) {
                     kioskBrandName: null,
                     kioskWelcomeMessage: null,
                     kioskFontFamily: null,
-                    kioskLogoUrl: null
+                    kioskLogoUrl: null,
+                    kioskTextColor: null
                 } as any
             }) as any);
         }
@@ -234,7 +235,8 @@ export async function POST(request: Request) {
             kioskBrandName,
             kioskWelcomeMessage,
             kioskFontFamily,
-            kioskLogoUrl
+            kioskLogoUrl,
+            kioskTextColor
         } = body;
 
         // Validation for captureTimer (Min 5, Max 10)
@@ -276,6 +278,7 @@ export async function POST(request: Request) {
                 kioskWelcomeMessage: kioskWelcomeMessage !== undefined ? kioskWelcomeMessage : null,
                 kioskFontFamily: kioskFontFamily !== undefined ? kioskFontFamily : null,
                 kioskLogoUrl: kioskLogoUrl !== undefined ? kioskLogoUrl : null,
+                kioskTextColor: kioskTextColor !== undefined ? kioskTextColor : null,
             } as any,
             create: {
                 adminUserId: settingsAdminId,
@@ -309,6 +312,7 @@ export async function POST(request: Request) {
                 kioskWelcomeMessage: kioskWelcomeMessage !== undefined ? kioskWelcomeMessage : null,
                 kioskFontFamily: kioskFontFamily !== undefined ? kioskFontFamily : null,
                 kioskLogoUrl: kioskLogoUrl !== undefined ? kioskLogoUrl : null,
+                kioskTextColor: kioskTextColor !== undefined ? kioskTextColor : null,
             } as any
         }) as any;
 

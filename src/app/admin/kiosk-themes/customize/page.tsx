@@ -36,7 +36,8 @@ const PRESETS = [
         accent: "#A68B67",
         bgStart: "#0C0A09",
         bgEnd: "#0C0A09",
-        font: "Geist"
+        font: "Geist",
+        textColor: "#FFFFFF"
     },
     {
         id: "wedding",
@@ -44,7 +45,8 @@ const PRESETS = [
         accent: "#E8A3B9",
         bgStart: "#FFF8F9",
         bgEnd: "#FADCE2",
-        font: "Great Vibes"
+        font: "Great Vibes",
+        textColor: "#4A3F35"
     },
     {
         id: "retro",
@@ -52,7 +54,8 @@ const PRESETS = [
         accent: "#D97706",
         bgStart: "#FAF6ED",
         bgEnd: "#F3E8D0",
-        font: "Pacifico"
+        font: "Pacifico",
+        textColor: "#4A3F35"
     },
     {
         id: "minimalist",
@@ -60,7 +63,8 @@ const PRESETS = [
         accent: "#4B6B58",
         bgStart: "#F4F7F5",
         bgEnd: "#E3EAE6",
-        font: "Outfit"
+        font: "Outfit",
+        textColor: "#2C3A30"
     },
     {
         id: "celebration",
@@ -68,7 +72,8 @@ const PRESETS = [
         accent: "#EC4899",
         bgStart: "#1E1B4B",
         bgEnd: "#0F0E36",
-        font: "Bebas Neue"
+        font: "Bebas Neue",
+        textColor: "#FFFFFF"
     }
 ];
 
@@ -115,6 +120,7 @@ export default function KioskWorkspaceCustomizerPage() {
         bgStart: string;
         bgEnd: string;
         font: string;
+        textColor: string;
     }[]>([]);
 
     const [settings, setSettings] = useState({
@@ -146,7 +152,8 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskBrandName: null as string | null,
         kioskWelcomeMessage: null as string | null,
         kioskFontFamily: null as string | null,
-        kioskLogoUrl: null as string | null
+        kioskLogoUrl: null as string | null,
+        kioskTextColor: null as string | null
     });
 
     useEffect(() => {
@@ -216,7 +223,8 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskBrandName: data.kioskBrandName || null,
                 kioskWelcomeMessage: data.kioskWelcomeMessage || null,
                 kioskFontFamily: data.kioskFontFamily || null,
-                kioskLogoUrl: data.kioskLogoUrl || null
+                kioskLogoUrl: data.kioskLogoUrl || null,
+                kioskTextColor: data.kioskTextColor || null
             });
         } catch (err: any) {
             setError(err.message || "Gagal memuat pengaturan");
@@ -263,7 +271,8 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskBgGradientStart: null,
                 kioskBgGradientEnd: null,
                 kioskFontFamily: null,
-                kioskLogoUrl: null
+                kioskLogoUrl: null,
+                kioskTextColor: null
             }));
         } else {
             setSettings(prev => ({
@@ -272,7 +281,8 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskAccentColor: preset.accent,
                 kioskBgGradientStart: preset.bgStart,
                 kioskBgGradientEnd: preset.bgEnd,
-                kioskFontFamily: preset.font
+                kioskFontFamily: preset.font,
+                kioskTextColor: preset.textColor
             }));
         }
     };
@@ -297,7 +307,8 @@ export default function KioskWorkspaceCustomizerPage() {
             accent: settings.kioskAccentColor || "#A68B67",
             bgStart: settings.kioskBgGradientStart || "#0C0A09",
             bgEnd: settings.kioskBgGradientEnd || "#0C0A09",
-            font: settings.kioskFontFamily || "Geist"
+            font: settings.kioskFontFamily || "Geist",
+            textColor: settings.kioskTextColor || "#FFFFFF"
         };
 
         const updated = [...customPresets, newPreset];
@@ -326,7 +337,8 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskBrandName: null,
             kioskWelcomeMessage: null,
             kioskFontFamily: null,
-            kioskLogoUrl: null
+            kioskLogoUrl: null,
+            kioskTextColor: null
         }));
     };
 
@@ -672,7 +684,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                                                 kioskAccentColor: preset.accent,
                                                                 kioskBgGradientStart: preset.bgStart,
                                                                 kioskBgGradientEnd: preset.bgEnd,
-                                                                kioskFontFamily: preset.font
+                                                                kioskFontFamily: preset.font,
+                                                                kioskTextColor: preset.textColor || "#FFFFFF"
                                                             }));
                                                         }}
                                                         className={`p-1.5 rounded-lg border text-left transition-all flex items-center gap-1.5 cursor-pointer relative group ${
@@ -769,6 +782,28 @@ export default function KioskWorkspaceCustomizerPage() {
                                                         type="color"
                                                         value={settings.kioskBgGradientEnd || "#0C0A09"}
                                                         onChange={e => setSettings(prev => ({ ...prev, kioskBgGradientEnd: e.target.value }))}
+                                                        className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Text Color Picker */}
+                                        <div className="flex items-center justify-between gap-4">
+                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Warna Text Kiosk</span>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={settings.kioskTextColor || ""}
+                                                    onChange={e => setSettings(prev => ({ ...prev, kioskTextColor: e.target.value }))}
+                                                    placeholder="#FFFFFF"
+                                                    className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                                />
+                                                <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                    <input
+                                                        type="color"
+                                                        value={settings.kioskTextColor || "#FFFFFF"}
+                                                        onChange={e => setSettings(prev => ({ ...prev, kioskTextColor: e.target.value }))}
                                                         className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
                                                     />
                                                 </div>
@@ -957,12 +992,27 @@ export default function KioskWorkspaceCustomizerPage() {
                                 {/* Tablet Outer Bezel Shell */}
                                 <div className="absolute inset-0 -m-4 rounded-[36px] border-[12px] border-stone-800 bg-stone-900 pointer-events-none shadow-2xl z-0" />
                                 {/* Screen Inner Frame Container */}
-                                <div className={`absolute inset-0 rounded-2xl overflow-hidden flex flex-col justify-between p-6 ${textColor} select-none transition-all duration-300 z-10`}
+                                <div id="mock-screen-container" className={`absolute inset-0 rounded-2xl overflow-hidden flex flex-col justify-between p-6 ${textColor} select-none transition-all duration-300 z-10`}
                                      style={{ 
                                          background: getBgStyle(),
-                                         fontFamily: getFontFamily()
+                                         fontFamily: getFontFamily(),
+                                         ...(settings.kioskTextColor ? { color: settings.kioskTextColor } : {})
                                      }}
                                 >
+                                {/* Live Text Color Preview Overrides */}
+                                {settings.kioskTextColor && (
+                                    <style dangerouslySetInnerHTML={{
+                                        __html: `
+                                            #mock-screen-container .text-white, #mock-screen-container .text-\\[\\#4A3F35\\] {
+                                                color: ${settings.kioskTextColor} !important;
+                                            }
+                                            #mock-screen-container .text-white\\/60, #mock-screen-container .text-\\[\\#8C7E6A\\] {
+                                                color: ${settings.kioskTextColor}b3 !important;
+                                            }
+                                        `
+                                    }} />
+                                )}
+
                                 {/* Immersive Grid Dots Pattern Background */}
                                 <div 
                                     className="absolute inset-0 opacity-[0.08] pointer-events-none [background-size:24px_24px] z-0" 
