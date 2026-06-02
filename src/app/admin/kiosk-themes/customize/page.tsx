@@ -37,7 +37,9 @@ const PRESETS = [
         bgStart: "#0C0A09",
         bgEnd: "#0C0A09",
         font: "Geist",
-        textColor: "#FFFFFF"
+        textColor: "#FFFFFF",
+        buttonColor: "#A68B67",
+        buttonTextColor: "#FFFFFF"
     },
     {
         id: "wedding",
@@ -46,7 +48,9 @@ const PRESETS = [
         bgStart: "#FFF8F9",
         bgEnd: "#FADCE2",
         font: "Great Vibes",
-        textColor: "#4A3F35"
+        textColor: "#4A3F35",
+        buttonColor: "#E8A3B9",
+        buttonTextColor: "#FFFFFF"
     },
     {
         id: "retro",
@@ -55,7 +59,9 @@ const PRESETS = [
         bgStart: "#FAF6ED",
         bgEnd: "#F3E8D0",
         font: "Pacifico",
-        textColor: "#4A3F35"
+        textColor: "#4A3F35",
+        buttonColor: "#D97706",
+        buttonTextColor: "#FFFFFF"
     },
     {
         id: "minimalist",
@@ -64,7 +70,9 @@ const PRESETS = [
         bgStart: "#F4F7F5",
         bgEnd: "#E3EAE6",
         font: "Outfit",
-        textColor: "#2C3A30"
+        textColor: "#2C3A30",
+        buttonColor: "#4B6B58",
+        buttonTextColor: "#FFFFFF"
     },
     {
         id: "celebration",
@@ -73,7 +81,9 @@ const PRESETS = [
         bgStart: "#1E1B4B",
         bgEnd: "#0F0E36",
         font: "Bebas Neue",
-        textColor: "#FFFFFF"
+        textColor: "#FFFFFF",
+        buttonColor: "#EC4899",
+        buttonTextColor: "#FFFFFF"
     }
 ];
 
@@ -111,6 +121,7 @@ export default function KioskWorkspaceCustomizerPage() {
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [showPresetModal, setShowPresetModal] = useState(false);
     const [newPresetName, setNewPresetName] = useState("");
+    const [isGradient, setIsGradient] = useState(true);
 
     // Custom theme presets list
     const [customPresets, setCustomPresets] = useState<{
@@ -121,6 +132,8 @@ export default function KioskWorkspaceCustomizerPage() {
         bgEnd: string;
         font: string;
         textColor: string;
+        buttonColor?: string;
+        buttonTextColor?: string;
     }[]>([]);
 
     const [settings, setSettings] = useState({
@@ -153,8 +166,40 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskWelcomeMessage: null as string | null,
         kioskFontFamily: null as string | null,
         kioskLogoUrl: null as string | null,
-        kioskTextColor: null as string | null
+        kioskTextColor: null as string | null,
+        kioskButtonColor: null as string | null,
+        kioskButtonTextColor: null as string | null
     });
+
+    const handleColorChange = (field: string, value: any) => {
+        setSettings(prev => {
+            const next = { ...prev, [field]: value };
+            if (prev.kioskThemePreset && prev.kioskThemePreset.startsWith("custom_")) {
+                setCustomPresets(prevCustom => {
+                    const updated = prevCustom.map(p => {
+                        if (p.id === prev.kioskThemePreset) {
+                            let mappedField = "";
+                            if (field === "kioskAccentColor") mappedField = "accent";
+                            else if (field === "kioskBgGradientStart") mappedField = "bgStart";
+                            else if (field === "kioskBgGradientEnd") mappedField = "bgEnd";
+                            else if (field === "kioskTextColor") mappedField = "textColor";
+                            else if (field === "kioskButtonColor") mappedField = "buttonColor";
+                            else if (field === "kioskButtonTextColor") mappedField = "buttonTextColor";
+                            else if (field === "kioskFontFamily") mappedField = "font";
+                            
+                            if (mappedField) {
+                                return { ...p, [mappedField]: value };
+                            }
+                        }
+                        return p;
+                    });
+                    localStorage.setItem("kiosk_custom_presets", JSON.stringify(updated));
+                    return updated;
+                });
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (!userId) {
@@ -183,16 +228,18 @@ export default function KioskWorkspaceCustomizerPage() {
             
             // Get user basic info to display in title
             const userRes = await fetch(`/api/admin/users?t=${Date.now()}`);
+            let accountNameData = "";
             if (userRes.ok) {
                 const usersList = await userRes.json();
                 const matched = usersList.find((u: any) => u.id === userId);
                 if (matched) {
-                    setAccountName(matched.name || matched.email);
+                    accountNameData = matched.name || matched.email;
+                    setAccountName(accountNameData);
                 }
             }
 
-            const res = await fetch(`/api/admin/settings?userId=${userId}`);
-            if (!res.ok) throw new Error("Gagal mengambil pengaturan Kiosk");
+            const res = await fetch(`/api/admin/settings?userId=${userId}&t=${Date.now()}`);
+            if (!res.ok) throw new Error("Gagal mengambil data pengaturan");
             const data = await res.json();
             
             setSettings({
@@ -224,8 +271,11 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskWelcomeMessage: data.kioskWelcomeMessage || null,
                 kioskFontFamily: data.kioskFontFamily || null,
                 kioskLogoUrl: data.kioskLogoUrl || null,
-                kioskTextColor: data.kioskTextColor || null
+                kioskTextColor: data.kioskTextColor || null,
+                kioskButtonColor: data.kioskButtonColor || null,
+                kioskButtonTextColor: data.kioskButtonTextColor || null
             });
+            setIsGradient(data.kioskBgGradientStart && data.kioskBgGradientEnd ? data.kioskBgGradientStart !== data.kioskBgGradientEnd : true);
         } catch (err: any) {
             setError(err.message || "Gagal memuat pengaturan");
         } finally {
@@ -272,8 +322,11 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskBgGradientEnd: null,
                 kioskFontFamily: null,
                 kioskLogoUrl: null,
-                kioskTextColor: null
+                kioskTextColor: null,
+                kioskButtonColor: null,
+                kioskButtonTextColor: null
             }));
+            setIsGradient(true);
         } else {
             setSettings(prev => ({
                 ...prev,
@@ -282,8 +335,11 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskBgGradientStart: preset.bgStart,
                 kioskBgGradientEnd: preset.bgEnd,
                 kioskFontFamily: preset.font,
-                kioskTextColor: preset.textColor
+                kioskTextColor: preset.textColor,
+                kioskButtonColor: preset.buttonColor,
+                kioskButtonTextColor: preset.buttonTextColor
             }));
+            setIsGradient(preset.bgStart !== preset.bgEnd);
         }
     };
 
@@ -304,16 +360,33 @@ export default function KioskWorkspaceCustomizerPage() {
         const newPreset = {
             id: `custom_${Date.now()}`,
             name: themeName,
-            accent: settings.kioskAccentColor || "#A68B67",
-            bgStart: settings.kioskBgGradientStart || "#0C0A09",
-            bgEnd: settings.kioskBgGradientEnd || "#0C0A09",
-            font: settings.kioskFontFamily || "Geist",
-            textColor: settings.kioskTextColor || "#FFFFFF"
+            accent: "#A68B67",
+            bgStart: "#0C0A09",
+            bgEnd: "#0C0A09",
+            font: "Geist",
+            textColor: "#FFFFFF",
+            buttonColor: "#A68B67",
+            buttonTextColor: "#FFFFFF"
         };
 
         const updated = [...customPresets, newPreset];
         setCustomPresets(updated);
         localStorage.setItem("kiosk_custom_presets", JSON.stringify(updated));
+
+        // Auto apply and select the newly created theme immediately
+        setSettings(prev => ({
+            ...prev,
+            kioskThemePreset: newPreset.id,
+            kioskAccentColor: newPreset.accent,
+            kioskBgGradientStart: newPreset.bgStart,
+            kioskBgGradientEnd: newPreset.bgEnd,
+            kioskFontFamily: newPreset.font,
+            kioskTextColor: newPreset.textColor,
+            kioskButtonColor: newPreset.buttonColor,
+            kioskButtonTextColor: newPreset.buttonTextColor
+        }));
+        setIsGradient(newPreset.bgStart !== newPreset.bgEnd);
+
         setShowPresetModal(false);
         setNewPresetName("");
     };
@@ -338,8 +411,11 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskWelcomeMessage: null,
             kioskFontFamily: null,
             kioskLogoUrl: null,
-            kioskTextColor: null
+            kioskTextColor: null,
+            kioskButtonColor: null,
+            kioskButtonTextColor: null
         }));
+        setIsGradient(true);
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -464,10 +540,10 @@ export default function KioskWorkspaceCustomizerPage() {
             )}
 
             {/* Main Content Workspace Stack (Top-Bottom Stack using flex-col-reverse) */}
-            <div className="flex-1 flex flex-col-reverse overflow-hidden bg-[#FAF8F5]">
+            <div className="flex-1 flex flex-col-reverse lg:overflow-hidden overflow-y-auto bg-[#FAF8F5]">
                 
-                {/* BOTTOM CONTROL COCKPIT (height: 320px) */}
-                <div className="h-[320px] w-full bg-white border-t border-[#EAE1D3] flex flex-col shrink-0 overflow-hidden shadow-2xl z-20">
+                {/* BOTTOM CONTROL COCKPIT */}
+                <div className="h-auto lg:h-[320px] w-full bg-white border-t border-[#EAE1D3] flex flex-col shrink-0 lg:overflow-hidden shadow-2xl z-20">
                     
                     {/* Tab Navigation Menu */}
                     <div className="flex border-b border-[#EAE1D3] shrink-0 bg-[#FAF8F5] z-10">
@@ -522,10 +598,10 @@ export default function KioskWorkspaceCustomizerPage() {
                         
                         {/* TAB 1: AESTHETICS & BRAND THEMING (3-column layout) */}
                         {activeTab === "aesthetic" && (
-                            <div className="grid grid-cols-3 gap-6 h-full text-[#4A3F35]">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[#4A3F35]">
                                 
                                 {/* Kolom 1: Brand & Welcome message */}
-                                <div className="space-y-3 pr-4 border-r border-[#EAE1D3]/50">
+                                <div className="space-y-3 md:pr-4 md:border-r border-[#EAE1D3]/50">
                                     <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4A3F35] border-b border-[#EAE1D3] pb-2 flex items-center gap-1.5">
                                         <Tv className="w-3.5 h-3.5 text-[#A68B67]" />
                                         Brand & Welcome Message
@@ -620,9 +696,9 @@ export default function KioskWorkspaceCustomizerPage() {
                                         </select>
                                     </div>
                                 </div>
-
+                                
                                 {/* Kolom 2: Presets & Custom Themes */}
-                                <div className="space-y-3 px-2 border-r border-[#EAE1D3]/50 overflow-y-auto scrollbar-hide max-h-[250px]">
+                                <div className="space-y-3 md:px-2 md:border-r border-[#EAE1D3]/50 overflow-y-auto scrollbar-hide max-h-[250px]">
                                     <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4A3F35] border-b border-[#EAE1D3] pb-2 flex items-center gap-1.5">
                                         <Palette className="w-3.5 h-3.5 text-[#A68B67]" />
                                         Preset & Tema Instan
@@ -660,7 +736,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                     {/* Custom presets */}
                                     <div className="space-y-1 pt-2 border-t border-[#EAE1D3]/50">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[8px] text-[#8C7E6A] font-bold uppercase tracking-wider block">Tema Kustom Klien</label>
+                                            <label className="text-[8px] text-[#8C7E6A] font-bold uppercase tracking-wider block">Tema Kustom KLIEN</label>
                                             <button
                                                 type="button"
                                                 onClick={handleSaveCustomPreset}
@@ -674,57 +750,67 @@ export default function KioskWorkspaceCustomizerPage() {
                                             <p className="text-[7.5px] font-bold uppercase text-[#8C7E6A]/50 text-center py-2">Belum ada tema kustom</p>
                                         ) : (
                                             <div className="grid grid-cols-2 gap-1.5">
-                                                {customPresets.map(preset => (
-                                                    <div
-                                                        key={preset.id}
-                                                        onClick={() => {
-                                                            setSettings(prev => ({
-                                                                ...prev,
-                                                                kioskThemePreset: "custom",
-                                                                kioskAccentColor: preset.accent,
-                                                                kioskBgGradientStart: preset.bgStart,
-                                                                kioskBgGradientEnd: preset.bgEnd,
-                                                                kioskFontFamily: preset.font,
-                                                                kioskTextColor: preset.textColor || "#FFFFFF"
-                                                            }));
-                                                        }}
-                                                        className={`p-1.5 rounded-lg border text-left transition-all flex items-center gap-1.5 cursor-pointer relative group ${
-                                                            settings.kioskThemePreset === preset.id
-                                                                ? "bg-white border-[#A68B67] shadow-sm"
-                                                                : "bg-[#FAF8F5] border-[#EAE1D3] hover:border-[#8C7E6A]"
-                                                        }`}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => handleDeleteCustomPreset(preset.id, e)}
-                                                            className="absolute top-0.5 right-0.5 p-0.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-md opacity-0 group-hover:opacity-100 transition-all z-20"
+                                                {customPresets.map(preset => {
+                                                    const isActive = settings.kioskThemePreset === preset.id;
+                                                    const displayBgStart = isActive ? (settings.kioskBgGradientStart || preset.bgStart) : preset.bgStart;
+                                                    const displayBgEnd = isActive ? (settings.kioskBgGradientEnd || preset.bgEnd) : preset.bgEnd;
+                                                    const displayAccent = isActive ? (settings.kioskAccentColor || preset.accent) : preset.accent;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={preset.id}
+                                                            onClick={() => {
+                                                                setSettings(prev => ({
+                                                                    ...prev,
+                                                                    kioskThemePreset: preset.id,
+                                                                    kioskAccentColor: preset.accent,
+                                                                    kioskBgGradientStart: preset.bgStart,
+                                                                    kioskBgGradientEnd: preset.bgEnd,
+                                                                    kioskFontFamily: preset.font,
+                                                                    kioskTextColor: preset.textColor || "#FFFFFF",
+                                                                    kioskButtonColor: preset.buttonColor || "#A68B67",
+                                                                    kioskButtonTextColor: preset.buttonTextColor || "#FFFFFF"
+                                                                }));
+                                                                setIsGradient(preset.bgStart !== preset.bgEnd);
+                                                            }}
+                                                            className={`p-1.5 rounded-lg border text-left transition-all flex items-center gap-1.5 cursor-pointer relative group ${
+                                                                settings.kioskThemePreset === preset.id
+                                                                    ? "bg-white border-[#A68B67] shadow-sm"
+                                                                    : "bg-[#FAF8F5] border-[#EAE1D3] hover:border-[#8C7E6A]"
+                                                            }`}
                                                         >
-                                                            <X className="w-2 h-2" />
-                                                        </button>
-                                                        <div 
-                                                            className="w-3.5 h-3.5 rounded-full border border-black/10 flex items-center justify-center shrink-0 shadow-inner"
-                                                            style={{ background: `linear-gradient(135deg, ${preset.bgStart}, ${preset.bgEnd})` }}
-                                                        >
-                                                            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: preset.accent }} />
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => handleDeleteCustomPreset(preset.id, e)}
+                                                                className="absolute top-0.5 right-0.5 p-0.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-md opacity-0 group-hover:opacity-100 transition-all z-20"
+                                                            >
+                                                                <X className="w-2 h-2" />
+                                                            </button>
+                                                            <div 
+                                                                className="w-3.5 h-3.5 rounded-full border border-black/10 flex items-center justify-center shrink-0 shadow-inner animate-pulse-slow"
+                                                                style={{ background: `linear-gradient(135deg, ${displayBgStart}, ${displayBgEnd})` }}
+                                                            >
+                                                                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: displayAccent }} />
+                                                            </div>
+                                                            <span className="text-[8px] font-black uppercase tracking-wider text-[#4A3F35] truncate block w-[70%]">
+                                                                {preset.name}
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#4A3F35] truncate block w-[70%]">
-                                                            {preset.name}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Kolom 3: Fine-Tuning Palet Warna Custom */}
-                                <div className="space-y-3 pl-4">
+                                <div className="space-y-3 md:pl-4">
                                     <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4A3F35] border-b border-[#EAE1D3] pb-2 flex items-center gap-1.5">
                                         <Palette className="w-3.5 h-3.5 text-[#A68B67]" />
                                         Detail Warna (Fine-Tuning)
                                     </h3>
                                     
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 overflow-y-auto max-h-[190px] pr-1 pb-2">
                                         {/* Accent Color Picker */}
                                         <div className="flex items-center justify-between gap-4">
                                             <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aksen Tombol & Ring</span>
@@ -732,70 +818,123 @@ export default function KioskWorkspaceCustomizerPage() {
                                                 <input
                                                     type="text"
                                                     value={settings.kioskAccentColor || ""}
-                                                    onChange={e => setSettings(prev => ({ ...prev, kioskAccentColor: e.target.value }))}
+                                                    onChange={e => handleColorChange("kioskAccentColor", e.target.value)}
                                                     className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
                                                 />
                                                 <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
                                                     <input
                                                         type="color"
                                                         value={settings.kioskAccentColor || "#A68B67"}
-                                                        onChange={e => setSettings(prev => ({ ...prev, kioskAccentColor: e.target.value }))}
+                                                        onChange={e => handleColorChange("kioskAccentColor", e.target.value)}
                                                         className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Gradien Start Color Picker */}
-                                        <div className="flex items-center justify-between gap-4">
-                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Background Awal</span>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={settings.kioskBgGradientStart || ""}
-                                                    onChange={e => setSettings(prev => ({ ...prev, kioskBgGradientStart: e.target.value }))}
-                                                    className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                        {/* Gradasi Background Toggle Switch */}
+                                        <div className="flex items-center justify-between gap-4 pt-1 border-t border-stone-100">
+                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aktifkan Gradasi BG</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const nextVal = !isGradient;
+                                                    setIsGradient(nextVal);
+                                                    if (!nextVal) {
+                                                        const currentStart = settings.kioskBgGradientStart || "#0C0A09";
+                                                        handleColorChange("kioskBgGradientEnd", currentStart);
+                                                    } else {
+                                                        const currentEnd = (settings.kioskBgGradientStart === settings.kioskBgGradientEnd) ? "#1E1B4B" : (settings.kioskBgGradientEnd || "#1E1B4B");
+                                                        handleColorChange("kioskBgGradientEnd", currentEnd);
+                                                    }
+                                                }}
+                                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                                    isGradient ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                                }`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                                        isGradient ? "translate-x-5" : "translate-x-1"
+                                                    }`}
                                                 />
-                                                <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
-                                                    <input
-                                                        type="color"
-                                                        value={settings.kioskBgGradientStart || "#0C0A09"}
-                                                        onChange={e => setSettings(prev => ({ ...prev, kioskBgGradientStart: e.target.value }))}
-                                                        className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
-                                                    />
-                                                </div>
-                                            </div>
+                                            </button>
                                         </div>
 
-                                        {/* Gradien End Color Picker */}
-                                        <div className="flex items-center justify-between gap-4">
-                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Background Akhir</span>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={settings.kioskBgGradientEnd || ""}
-                                                    onChange={e => setSettings(prev => ({ ...prev, kioskBgGradientEnd: e.target.value }))}
-                                                    className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
-                                                />
-                                                <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                        {/* Conditionally Show Bg Start/End or Single Background Color */}
+                                        {!isGradient ? (
+                                            <div className="flex items-center justify-between gap-4">
+                                                <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Warna Background</span>
+                                                <div className="flex items-center gap-2">
                                                     <input
-                                                        type="color"
-                                                        value={settings.kioskBgGradientEnd || "#0C0A09"}
-                                                        onChange={e => setSettings(prev => ({ ...prev, kioskBgGradientEnd: e.target.value }))}
-                                                        className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                        type="text"
+                                                        value={settings.kioskBgGradientStart || ""}
+                                                        onChange={e => handleColorChange("kioskBgGradientStart", e.target.value)}
+                                                        className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
                                                     />
+                                                    <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                        <input
+                                                            type="color"
+                                                            value={settings.kioskBgGradientStart || "#0C0A09"}
+                                                            onChange={e => handleColorChange("kioskBgGradientStart", e.target.value)}
+                                                            className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <>
+                                                {/* Gradien Start Color Picker */}
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Background Awal</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={settings.kioskBgGradientStart || ""}
+                                                            onChange={e => handleColorChange("kioskBgGradientStart", e.target.value)}
+                                                            className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                                        />
+                                                        <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                            <input
+                                                                type="color"
+                                                                value={settings.kioskBgGradientStart || "#0C0A09"}
+                                                                onChange={e => handleColorChange("kioskBgGradientStart", e.target.value)}
+                                                                className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
 
-                                        {/* Text Color Picker */}
-                                        <div className="flex items-center justify-between gap-4">
+                                                {/* Gradien End Color Picker */}
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Background Akhir</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={settings.kioskBgGradientEnd || ""}
+                                                            onChange={e => handleColorChange("kioskBgGradientEnd", e.target.value)}
+                                                            className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                                        />
+                                                        <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                            <input
+                                                                type="color"
+                                                                value={settings.kioskBgGradientEnd || "#0C0A09"}
+                                                                onChange={e => handleColorChange("kioskBgGradientEnd", e.target.value)}
+                                                                className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* General Text Color Picker */}
+                                        <div className="flex items-center justify-between gap-4 pt-1 border-t border-stone-100">
                                             <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Warna Text Kiosk</span>
                                             <div className="flex items-center gap-2">
                                                 <input
                                                     type="text"
                                                     value={settings.kioskTextColor || ""}
-                                                    onChange={e => setSettings(prev => ({ ...prev, kioskTextColor: e.target.value }))}
+                                                    onChange={e => handleColorChange("kioskTextColor", e.target.value)}
                                                     placeholder="#FFFFFF"
                                                     className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
                                                 />
@@ -803,7 +942,51 @@ export default function KioskWorkspaceCustomizerPage() {
                                                     <input
                                                         type="color"
                                                         value={settings.kioskTextColor || "#FFFFFF"}
-                                                        onChange={e => setSettings(prev => ({ ...prev, kioskTextColor: e.target.value }))}
+                                                        onChange={e => handleColorChange("kioskTextColor", e.target.value)}
+                                                        className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Button Background Color Picker */}
+                                        <div className="flex items-center justify-between gap-4">
+                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Background Tombol</span>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={settings.kioskButtonColor || ""}
+                                                    onChange={e => handleColorChange("kioskButtonColor", e.target.value || null)}
+                                                    placeholder="#A68B67"
+                                                    className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                                />
+                                                <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                    <input
+                                                        type="color"
+                                                        value={settings.kioskButtonColor || "#A68B67"}
+                                                        onChange={e => handleColorChange("kioskButtonColor", e.target.value)}
+                                                        className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Button Text Color Picker */}
+                                        <div className="flex items-center justify-between gap-4">
+                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Warna Text Tombol</span>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={settings.kioskButtonTextColor || ""}
+                                                    onChange={e => handleColorChange("kioskButtonTextColor", e.target.value || null)}
+                                                    placeholder="#FFFFFF"
+                                                    className="w-20 px-2 py-1 bg-[#FAF8F5] border border-[#EAE1D3] rounded-lg text-[10px] font-mono font-bold text-center text-[#4A3F35]"
+                                                />
+                                                <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
+                                                    <input
+                                                        type="color"
+                                                        value={settings.kioskButtonTextColor || "#FFFFFF"}
+                                                        onChange={e => handleColorChange("kioskButtonTextColor", e.target.value)}
                                                         className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
                                                     />
                                                 </div>
@@ -811,13 +994,12 @@ export default function KioskWorkspaceCustomizerPage() {
                                         </div>
                                     </div>
                                 </div>
-
                             </div>
                         )}
 
                         {/* TAB 2: TIMER SECTIONS (4-column layout) */}
                         {activeTab === "timer" && (
-                            <div className="grid grid-cols-4 gap-6 h-full items-center">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 items-center">
                                 
                                 {/* Timer 1 */}
                                 <div className="space-y-2 p-4 bg-[#FAF8F5] border border-[#EAE1D3] rounded-2xl text-center shadow-sm">
@@ -876,7 +1058,7 @@ export default function KioskWorkspaceCustomizerPage() {
 
                         {/* TAB 3: CAMERA OPTIONS (2-column layout) */}
                         {activeTab === "camera" && (
-                            <div className="grid grid-cols-2 gap-8 h-full items-center">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                                 
                                 {/* Kolom 1: Jumlah Maksimal Sesi Jepretan */}
                                 <div className="space-y-3 p-5 bg-[#FAF8F5] border border-[#EAE1D3] rounded-2xl shadow-sm">
@@ -917,7 +1099,7 @@ export default function KioskWorkspaceCustomizerPage() {
 
                         {/* TAB 4: BUSINESS SWITCHES (2-column layout) */}
                         {activeTab === "business" && (
-                            <div className="grid grid-cols-2 gap-8 h-full items-center">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                                 
                                 {/* Kolom 1: Mode Pembayaran Kasir / QRIS */}
                                 <div className="space-y-4 p-5 bg-[#FAF8F5] border border-[#EAE1D3] rounded-2xl flex items-center justify-between shadow-sm">
@@ -985,7 +1167,9 @@ export default function KioskWorkspaceCustomizerPage() {
                         const subtextColor = isLight ? "text-[#8C7E6A]" : "text-white/60";
                         const borderColor = isLight ? "border-[#EAE1D3]" : "border-white/10";
                         const cardBgColor = isLight ? "bg-white/80 border-[#EAE1D3]" : "bg-white/5 border-white/10";
-                        const buttonTextColor = isLight && getAccentColor() === "#A68B67" ? "text-white" : "text-white";
+                                                const buttonTextColor = isLight && getAccentColor() === "#A68B67" ? "text-white" : "text-white";
+                        const mockButtonBg = settings.kioskButtonColor || getAccentColor();
+                        const mockButtonText = settings.kioskButtonTextColor || "#FFFFFF";
 
                         return (
                             <div className="aspect-[16/10] max-h-[calc(100%-36px)] max-w-full w-[840px] mx-auto my-auto relative shadow-2xl shrink z-10">
@@ -1062,8 +1246,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                             </p>
                                             <button
                                                 type="button"
-                                                className={`w-full py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-transform shadow-lg cursor-default ${buttonTextColor}`}
-                                                style={{ backgroundColor: getAccentColor() }}
+                                                className={`w-full py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-transform shadow-lg cursor-default`}
+                                                style={{ backgroundColor: mockButtonBg, color: mockButtonText }}
                                             >
                                                 Mulai Sesi Foto / Touch to Start
                                             </button>
@@ -1139,8 +1323,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                         <div className={`border-t ${borderColor} pt-4 flex justify-end`}>
                                             <button
                                                 type="button"
-                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default ${buttonTextColor}`}
-                                                style={{ backgroundColor: getAccentColor() }}
+                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default`}
+                                                style={{ backgroundColor: mockButtonBg, color: mockButtonText }}
                                             >
                                                 Lanjutkan / Next
                                             </button>
@@ -1225,8 +1409,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                             <span className={`text-[8px] font-bold uppercase ${subtextColor}`}>Terpilih: 3 foto</span>
                                             <button
                                                 type="button"
-                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default ${buttonTextColor}`}
-                                                style={{ backgroundColor: getAccentColor() }}
+                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default`}
+                                                style={{ backgroundColor: mockButtonBg, color: mockButtonText }}
                                             >
                                                 Lanjut ke Filter
                                             </button>
@@ -1268,8 +1452,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                         <div className={`border-t ${borderColor} pt-3 flex justify-end`}>
                                             <button
                                                 type="button"
-                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default ${buttonTextColor}`}
-                                                style={{ backgroundColor: getAccentColor() }}
+                                                className={`px-8 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest cursor-default`}
+                                                style={{ backgroundColor: mockButtonBg, color: mockButtonText }}
                                             >
                                                 Lanjutkan Cetak
                                             </button>
@@ -1304,8 +1488,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                         <div className="space-y-4 w-full max-w-xs">
                                             <button
                                                 type="button"
-                                                className={`w-full py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform shadow-lg cursor-default ${buttonTextColor}`}
-                                                style={{ backgroundColor: getAccentColor() }}
+                                                className={`w-full py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform shadow-lg cursor-default`}
+                                                style={{ backgroundColor: mockButtonBg, color: mockButtonText }}
                                             >
                                                 <Printer className="w-3.5 h-3.5" />
                                                 Cetak Foto Sekarang (Print)

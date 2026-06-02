@@ -1281,7 +1281,7 @@ const FinalResultPage: React.FC = () => {
         const doc = iframe.contentWindow?.document;
         if (!doc) throw new Error('Tidak dapat membuka dokumen untuk print');
 
-        // Exact 4R dimensions in millimeters as requested
+        // Exact 10 x 15 cm (4 x 6 in) (Borderless) dimensions in millimeters as requested
         const paperWidthMm = 102;
         const paperHeightMm = 152;
 

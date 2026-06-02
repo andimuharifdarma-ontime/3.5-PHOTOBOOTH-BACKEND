@@ -519,16 +519,9 @@ export default function ThemeFramesPage() {
                                         >
                                             <option value="custom">-- Pilih Format (Auto-Fill) --</option>
                                             <optgroup label="Format Populer (300 DPI)">
-                                                <option value="1200x1800">Foto 4R (Standar) - 1200 x 1800 px</option>
-                                                <option value="1050x1500">Foto 3R - 1050 x 1500 px</option>
-                                                <option value="750x1050">Foto 2R - 750 x 1050 px</option>
-                                                <option value="1500x2100">Foto 5R - 1500 x 2100 px</option>
+                                                <option value="1205x1795">10 x 15 cm (4 x 6 in) (Borderless) - 1205 x 1795 px</option>
                                                 <option value="945x1772">Frame Receipt - 945 x 1772 px</option>
                                                 <option value="889x2000">Frame Receipt - 889 x 2000 px</option>
-                                            </optgroup>
-                                            <optgroup label="Resolusi Lainnya (4R)">
-                                                <option value="800x1200">Foto 4R (Low/200 DPI) - 800 x 1200 px</option>
-                                                <option value="1600x2400">Foto 4R (High/400 DPI) - 1600 x 2400 px</option>
                                             </optgroup>
                                             <optgroup label="Digital / Screen">
                                                 <option value="1080x1920">Full HD Portrait (9:16) - 1080 x 1920 px</option>

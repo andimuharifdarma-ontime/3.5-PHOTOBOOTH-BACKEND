@@ -66,21 +66,38 @@ export async function GET(
 
   // 2) Try Supabase Storage
   const supabase = getSupabase();
+  const tryExts = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
 
+  // Try direct checking via HEAD request (extremely fast and robust, avoids list pagination limits)
+  for (const ext of tryExts) {
+    const storagePath = `images/${id}.${ext}`;
+    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath);
+    if (urlData?.publicUrl) {
+      try {
+        const checkRes = await fetch(urlData.publicUrl, { method: 'HEAD' });
+        if (checkRes.ok) {
+          const isDownload = _req.nextUrl.searchParams.get('download') === '1';
+          const redirectUrl = isDownload ? `${urlData.publicUrl}?download=1` : urlData.publicUrl;
+          return NextResponse.redirect(redirectUrl, 307);
+        }
+      } catch (e) {
+        console.error(`HEAD check failed for ${urlData.publicUrl}:`, e);
+      }
+    }
+  }
+
+  // Fallback: Try Supabase list with increased limit
   const { data: files } = await supabase.storage
     .from(BUCKET_NAME)
     .list('images', {
-      limit: 10,
+      limit: 100,
       search: id
     });
 
   if (files && files.length > 0) {
-    // Find the exact match (exact filename ignoring case but matching id)
-    // Because search might return a partial match like cust-123 and cust-123-bonus
-    const tryExts = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
     for (const ext of tryExts) {
       const expectedName = `${id}.${ext}`;
-      const foundFile = files.find(f => f.name === expectedName);
+      const foundFile = files.find(f => f.name.toLowerCase() === expectedName.toLowerCase());
       
       if (foundFile) {
         const storagePath = `images/${expectedName}`;

@@ -50,6 +50,10 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
   const livePhotoCanvasRef = useRef<HTMLCanvasElement>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<string | null>(null);
 
+  // State untuk countdown timer
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null); // dalam detik
+  const [expiresAt, setExpiresAt] = useState<number | null>(null); // timestamp ms
+  const [isExpiredRealtime, setIsExpiredRealtime] = useState(false);
 
 
   // Ambil foto langsung dari store agar kualitas tidak turun (fallback ke PNG jika reload)
@@ -222,14 +226,19 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
           if (settingsRes.ok) {
             const settingsData = await settingsRes.json();
             const retentionDays = settingsData.photoRetentionDays || 7;
-            const elapsedHours = (Date.now() - timestamp) / (1000 * 60 * 60);
-            const limitHours = retentionDays * 24;
-            
-            if (elapsedHours > limitHours) {
+            const limitMs = retentionDays * 24 * 60 * 60 * 1000;
+            const expAt = timestamp + limitMs;
+            const remainingMs = expAt - Date.now();
+
+            if (remainingMs <= 0) {
               setError('expired');
               setIsLoading(false);
               return;
             }
+
+            // Masih aktif → simpan expiresAt untuk countdown
+            setExpiresAt(expAt);
+            setTimeRemaining(Math.floor(remainingMs / 1000));
           }
         } catch (e) {
           console.error('Failed to fetch settings for expiration check:', e);
@@ -292,6 +301,33 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
     };
     getParams();
   }, [params]);
+
+  // Countdown timer interval: hitung mundur per detik
+  useEffect(() => {
+    if (!expiresAt) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.floor((expiresAt - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setTimeRemaining(0);
+        setIsExpiredRealtime(true);
+        clearInterval(interval);
+      } else {
+        setTimeRemaining(remaining);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  // Format detik → { days, hours, mins, secs }
+  const formatCountdown = (totalSeconds: number) => {
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return { days, hours, mins, secs };
+  };
 
   // Extract customer name from ID if it follows the pattern cust-[name]-[timestamp]
   const getCustomerName = (id: string): string => {
@@ -1114,24 +1150,53 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
     );
   }
 
-  if (error === 'expired') {
+  if (error === 'expired' || isExpiredRealtime) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center p-6 text-center">
-        <div className="max-w-md space-y-8 p-10 bg-white rounded-3xl border border-[#EAE1D3] shadow-xl">
-          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
-            <Clock className="w-8 h-8" />
+        {/* Ambient background */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] bg-[#F5F1EA] blur-[120px] rounded-full opacity-60" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[70%] h-[70%] bg-[#EAE1D3] blur-[150px] rounded-full opacity-40" />
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="relative z-10 max-w-md w-full space-y-8 p-10 bg-white/80 backdrop-blur-xl rounded-3xl border border-[#EAE1D3] shadow-2xl"
+        >
+          {/* Icon */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#F5E6D3] to-[#EAD5BB] flex items-center justify-center shadow-inner"
+          >
+            <CheckCircle2 className="w-10 h-10 text-[#A68B67]" />
+          </motion.div>
+
+          {/* Branding */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-black tracking-[0.6em] text-[#A68B67] uppercase">Dovelens.ft</p>
+            <div className="h-[1px] w-12 bg-[#EAE1D3] mx-auto" />
           </div>
+
+          {/* Pesan utama */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-serif italic text-[#4A3F35]">Sesi Unduhan Kedaluwarsa</h2>
-            <p className="text-[#8C7E6A] text-xs font-serif italic leading-relaxed">
-              Mohon maaf, demi menjaga privasi dan keamanan data Anda, file foto ini telah dihapus dari sistem kami secara otomatis karena telah melewati batas waktu penyimpanan yang ditentukan.
+            <h2 className="text-2xl font-serif italic text-[#4A3F35] leading-snug">
+              Terima kasih sudah mendownload
+              <span className="block text-[#A68B67] not-italic font-black text-sm tracking-widest uppercase mt-1">Soft File-nya</span>
+            </h2>
+            <p className="text-[#8C7E6A] text-sm font-serif italic leading-relaxed">
+              Halaman ini tidak bisa diakses lagi. Semoga foto kenangan Anda selalu menjadi momen berharga.
             </p>
           </div>
+
           <div className="h-[1px] bg-[#EAE1D3]" />
-          <p className="text-[10px] text-[#A68B67] font-black uppercase tracking-widest">
+
+          <p className="text-[10px] text-[#C4B09A] font-black uppercase tracking-widest">
             dovelens.ft • moment archive
           </p>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -1204,7 +1269,7 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-16 space-y-4"
+            className="text-center mb-8 space-y-4"
           >
             <h2 className="text-[40px] font-serif italic text-[#4A3F35] leading-tight">
               Koleksi <span className="text-[#A68B67] not-italic font-black text-3xl uppercase tracking-[0.3em]">Digital</span>
@@ -1213,6 +1278,128 @@ const DownloadPage: React.FC<DownloadPageProps> = ({ params, searchParams }) => 
               "Archive your special moments"
             </p>
           </motion.div>
+
+          {/* === COUNTDOWN TIMER BANNER === */}
+          {timeRemaining !== null && timeRemaining > 0 && (() => {
+            const { days, hours, mins, secs } = formatCountdown(timeRemaining);
+            const isUrgent = timeRemaining < 86400; // kurang dari 1 hari
+            const isCritical = timeRemaining < 3600; // kurang dari 1 jam
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: 0.15, duration: 0.5 }}
+                className={`relative mb-10 rounded-2xl overflow-hidden border ${
+                  isCritical
+                    ? 'border-red-300 bg-gradient-to-br from-red-50 to-orange-50'
+                    : isUrgent
+                    ? 'border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50'
+                    : 'border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50'
+                } shadow-md`}
+              >
+                {/* Animated background glow */}
+                <motion.div
+                  animate={{ opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  className={`absolute inset-0 ${
+                    isCritical ? 'bg-red-100/40' : isUrgent ? 'bg-orange-100/40' : 'bg-amber-100/30'
+                  }`}
+                />
+
+                <div className="relative z-10 px-5 py-5 text-center space-y-3">
+                  {/* Warning label */}
+                  <div className="flex items-center justify-center gap-2">
+                    <motion.span
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className={`text-lg ${isCritical ? 'text-red-500' : isUrgent ? 'text-orange-500' : 'text-amber-500'}`}
+                    >
+                      ⚡
+                    </motion.span>
+                    <p className={`text-xs font-black uppercase tracking-[0.3em] ${
+                      isCritical ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-amber-700'
+                    }`}>
+                      Download segera sebelum fotonya terhapus
+                    </p>
+                    <motion.span
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                      className={`text-lg ${isCritical ? 'text-red-500' : isUrgent ? 'text-orange-500' : 'text-amber-500'}`}
+                    >
+                      ⚡
+                    </motion.span>
+                  </div>
+
+                  {/* Countdown digits */}
+                  <div className="flex items-center justify-center gap-2">
+                    {days > 0 && (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <span className={`text-3xl font-black tabular-nums ${
+                            isCritical ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-amber-800'
+                          }`}>
+                            {String(days).padStart(2, '0')}
+                          </span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[#A68B67] mt-0.5">Hari</span>
+                        </div>
+                        <span className={`text-2xl font-black mb-4 ${
+                          isCritical ? 'text-red-400' : 'text-amber-400'
+                        }`}>:</span>
+                      </>
+                    )}
+                    <div className="flex flex-col items-center">
+                      <span className={`text-3xl font-black tabular-nums ${
+                        isCritical ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-amber-800'
+                      }`}>
+                        {String(hours).padStart(2, '0')}
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#A68B67] mt-0.5">Jam</span>
+                    </div>
+                    <span className={`text-2xl font-black mb-4 ${
+                      isCritical ? 'text-red-400' : 'text-amber-400'
+                    }`}>:</span>
+                    <div className="flex flex-col items-center">
+                      <span className={`text-3xl font-black tabular-nums ${
+                        isCritical ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-amber-800'
+                      }`}>
+                        {String(mins).padStart(2, '0')}
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#A68B67] mt-0.5">Menit</span>
+                    </div>
+                    <span className={`text-2xl font-black mb-4 ${
+                      isCritical ? 'text-red-400' : 'text-amber-400'
+                    }`}>:</span>
+                    <div className="flex flex-col items-center">
+                      <motion.span
+                        key={secs}
+                        initial={{ opacity: 0.5, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        className={`text-3xl font-black tabular-nums ${
+                          isCritical ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-amber-800'
+                        }`}
+                      >
+                        {String(secs).padStart(2, '0')}
+                      </motion.span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#A68B67] mt-0.5">Detik</span>
+                    </div>
+                  </div>
+
+                  {/* Subtext */}
+                  <p className={`text-[10px] font-serif italic ${
+                    isCritical ? 'text-red-500' : isUrgent ? 'text-orange-500' : 'text-amber-600'
+                  }`}>
+                    {isCritical
+                      ? '⚠️ Foto akan segera terhapus! Segera download sekarang'
+                      : isUrgent
+                      ? 'Kurang dari 24 jam tersisa — jangan sampai terlambat'
+                      : 'Foto disimpan sementara, download sebelum waktu habis'
+                    }
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Decorative Stickers (FAT KAT Images) with Floating Animation */}
           <motion.div

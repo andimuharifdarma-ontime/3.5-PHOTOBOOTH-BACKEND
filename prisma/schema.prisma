@@ -46,6 +46,8 @@ model SystemSetting {
   kioskFontFamily              String?
   kioskLogoUrl                 String?
   kioskTextColor               String?
+  kioskButtonColor             String?
+  kioskButtonTextColor         String?
 }
 
 model FrameTheme {

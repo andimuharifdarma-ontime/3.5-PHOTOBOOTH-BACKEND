@@ -104,6 +104,8 @@ export const settingsSchema = z.object({
   kioskFontFamily: z.string().nullable().optional(),
   kioskLogoUrl: z.string().nullable().optional(),
   kioskTextColor: z.string().nullable().optional(),
+  kioskButtonColor: z.string().nullable().optional(),
+  kioskButtonTextColor: z.string().nullable().optional(),
 });
 
 // ==========================
