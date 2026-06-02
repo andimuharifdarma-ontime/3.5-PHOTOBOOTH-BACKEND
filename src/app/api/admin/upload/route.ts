@@ -5,15 +5,20 @@ import { authOptions } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for server-side uploads (bypasses RLS)
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+        throw new Error("Supabase credentials (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY) are missing in Vercel environment variables.");
+    }
+    return createClient(url, key);
+}
 
 const BUCKET_NAME = 'photobooth-uploads';
 
 export async function POST(request: Request) {
     try {
+        const supabase = getSupabaseClient();
         const session = await getServerSession(authOptions);
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

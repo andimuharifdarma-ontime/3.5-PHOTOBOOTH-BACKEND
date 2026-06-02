@@ -486,10 +486,17 @@ export default function KioskWorkspaceCustomizerPage() {
                 showAlert("Logo berhasil diunggah!", "success");
             } else {
                 let errMsg = 'Gagal mengunggah logo. Silakan coba lagi.';
+                const rawText = await res.text();
                 try {
-                    const errData = await res.json();
+                    const errData = JSON.parse(rawText);
                     errMsg = errData.error || errMsg;
-                } catch (_) {}
+                } catch (_) {
+                    if (rawText.includes("Payload Too Large") || res.status === 413) {
+                        errMsg = "Ukuran file logo terlalu besar! Batas maksimal upload di server Vercel adalah 4.5 MB.";
+                    } else {
+                        errMsg = `Error ${res.status}: Terjadi masalah pada server. Detail: ${rawText.substring(0, 150)}`;
+                    }
+                }
                 showAlert(errMsg, "error");
             }
         } catch (error: any) {
@@ -531,10 +538,17 @@ export default function KioskWorkspaceCustomizerPage() {
                 showAlert("Background berhasil diunggah!", "success");
             } else {
                 let errMsg = 'Gagal mengunggah background. Silakan coba lagi.';
+                const rawText = await res.text();
                 try {
-                    const errData = await res.json();
+                    const errData = JSON.parse(rawText);
                     errMsg = errData.error || errMsg;
-                } catch (_) {}
+                } catch (_) {
+                    if (rawText.includes("Payload Too Large") || res.status === 413) {
+                        errMsg = "Ukuran file background terlalu besar! Batas maksimal upload di server Vercel adalah 4.5 MB.";
+                    } else {
+                        errMsg = `Error ${res.status}: Terjadi masalah pada server. Detail: ${rawText.substring(0, 150)}`;
+                    }
+                }
                 showAlert(errMsg, "error");
             }
         } catch (error: any) {
