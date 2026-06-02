@@ -1294,12 +1294,13 @@ export default function KioskWorkspaceCustomizerPage() {
                         const subtextColor = isLight ? "text-[#8C7E6A]" : "text-white/60";
                         const borderColor = isLight ? "border-[#EAE1D3]" : "border-white/10";
                         const cardBgColor = isLight ? "bg-white/80 border-[#EAE1D3]" : "bg-white/5 border-white/10";
-                                                const buttonTextColor = isLight && getAccentColor() === "#A68B67" ? "text-white" : "text-white";
+                                        const buttonTextColor = isLight && getAccentColor() === "#A68B67" ? "text-white" : "text-white";
                         const mockButtonBg = settings.kioskButtonColor || getAccentColor();
                         const mockButtonText = settings.kioskButtonTextColor || "#FFFFFF";
 
                         return (
-                            <div className="aspect-[16/10] max-h-[calc(100%-36px)] max-w-full w-[840px] mx-auto my-auto relative shadow-2xl shrink z-10">
+                            <div className="flex-1 flex items-center justify-center overflow-hidden w-full relative z-10 py-10 px-6">
+                                <div className="aspect-[16/10] h-full max-h-full max-w-full w-auto relative shadow-2xl">
                                 {/* Tablet Outer Bezel Shell */}
                                 <div className="absolute inset-0 -m-4 rounded-[36px] border-[12px] border-stone-800 bg-stone-900 pointer-events-none shadow-2xl z-0" />
                                 {/* Screen Inner Frame Container */}
@@ -1644,6 +1645,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                 )}
 
                             </div>
+                        </div>
                         </div>
                         );
                     })()}
