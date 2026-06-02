@@ -106,6 +106,9 @@ export const settingsSchema = z.object({
   kioskTextColor: z.string().nullable().optional(),
   kioskButtonColor: z.string().nullable().optional(),
   kioskButtonTextColor: z.string().nullable().optional(),
+  kioskBgImageUrl: z.string().nullable().optional(),
+  kioskBgImageOpacity: z.number().min(0).max(1).nullable().optional(),
+  kioskShowBgDots: z.boolean().optional(),
 });
 
 // ==========================

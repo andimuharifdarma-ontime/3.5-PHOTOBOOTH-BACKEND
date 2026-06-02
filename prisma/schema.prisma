@@ -48,6 +48,9 @@ model SystemSetting {
   kioskTextColor               String?
   kioskButtonColor             String?
   kioskButtonTextColor         String?
+  kioskBgImageUrl              String?
+  kioskBgImageOpacity          Float?     @default(1.0)
+  kioskShowBgDots              Boolean    @default(true)
 }
 
 model FrameTheme {

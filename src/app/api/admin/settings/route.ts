@@ -154,7 +154,10 @@ export async function GET(request: Request) {
                     kioskLogoUrl: null,
                     kioskTextColor: null,
                     kioskButtonColor: null,
-                    kioskButtonTextColor: null
+                    kioskButtonTextColor: null,
+                    kioskBgImageUrl: null,
+                    kioskBgImageOpacity: 1.0,
+                    kioskShowBgDots: true
                 } as any
             }) as any);
         }
@@ -240,7 +243,10 @@ export async function POST(request: Request) {
             kioskLogoUrl,
             kioskTextColor,
             kioskButtonColor,
-            kioskButtonTextColor
+            kioskButtonTextColor,
+            kioskBgImageUrl,
+            kioskBgImageOpacity,
+            kioskShowBgDots
         } = body;
 
         // Validation for captureTimer (Min 5, Max 10)
@@ -285,6 +291,9 @@ export async function POST(request: Request) {
                 kioskTextColor: kioskTextColor !== undefined ? kioskTextColor : null,
                 kioskButtonColor: kioskButtonColor !== undefined ? kioskButtonColor : null,
                 kioskButtonTextColor: kioskButtonTextColor !== undefined ? kioskButtonTextColor : null,
+                kioskBgImageUrl: kioskBgImageUrl !== undefined ? kioskBgImageUrl : null,
+                kioskBgImageOpacity: kioskBgImageOpacity !== undefined ? kioskBgImageOpacity : 1.0,
+                kioskShowBgDots: kioskShowBgDots !== undefined ? kioskShowBgDots : true,
             } as any,
             create: {
                 adminUserId: settingsAdminId,
@@ -321,12 +330,20 @@ export async function POST(request: Request) {
                 kioskTextColor: kioskTextColor !== undefined ? kioskTextColor : null,
                 kioskButtonColor: kioskButtonColor !== undefined ? kioskButtonColor : null,
                 kioskButtonTextColor: kioskButtonTextColor !== undefined ? kioskButtonTextColor : null,
+                kioskBgImageUrl: kioskBgImageUrl !== undefined ? kioskBgImageUrl : null,
+                kioskBgImageOpacity: kioskBgImageOpacity !== undefined ? kioskBgImageOpacity : 1.0,
+                kioskShowBgDots: kioskShowBgDots !== undefined ? kioskShowBgDots : true,
             } as any
         }) as any;
 
         // Clean up old custom logo files in Supabase storage to save space
         if ((currentSetting as any)?.kioskLogoUrl && (currentSetting as any).kioskLogoUrl !== (updatedSetting as any).kioskLogoUrl) {
             await deleteSupabaseFile((currentSetting as any).kioskLogoUrl);
+        }
+
+        // Clean up old custom background files in Supabase storage to save space
+        if ((currentSetting as any)?.kioskBgImageUrl && (currentSetting as any).kioskBgImageUrl !== (updatedSetting as any).kioskBgImageUrl) {
+            await deleteSupabaseFile((currentSetting as any).kioskBgImageUrl);
         }
 
         // Audit log

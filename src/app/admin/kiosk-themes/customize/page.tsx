@@ -119,6 +119,7 @@ export default function KioskWorkspaceCustomizerPage() {
     const [success, setSuccess] = useState(false);
     const [accountName, setAccountName] = useState("");
     const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingBg, setUploadingBg] = useState(false);
     const [showPresetModal, setShowPresetModal] = useState(false);
     const [newPresetName, setNewPresetName] = useState("");
     const [isGradient, setIsGradient] = useState(true);
@@ -168,7 +169,10 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskLogoUrl: null as string | null,
         kioskTextColor: null as string | null,
         kioskButtonColor: null as string | null,
-        kioskButtonTextColor: null as string | null
+        kioskButtonTextColor: null as string | null,
+        kioskBgImageUrl: null as string | null,
+        kioskBgImageOpacity: 1.0 as number,
+        kioskShowBgDots: true as boolean
     });
 
     const handleColorChange = (field: string, value: any) => {
@@ -273,7 +277,10 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskLogoUrl: data.kioskLogoUrl || null,
                 kioskTextColor: data.kioskTextColor || null,
                 kioskButtonColor: data.kioskButtonColor || null,
-                kioskButtonTextColor: data.kioskButtonTextColor || null
+                kioskButtonTextColor: data.kioskButtonTextColor || null,
+                kioskBgImageUrl: data.kioskBgImageUrl || null,
+                kioskBgImageOpacity: data.kioskBgImageOpacity ?? 1.0,
+                kioskShowBgDots: data.kioskShowBgDots ?? true
             });
             setIsGradient(data.kioskBgGradientStart && data.kioskBgGradientEnd ? data.kioskBgGradientStart !== data.kioskBgGradientEnd : true);
         } catch (err: any) {
@@ -413,7 +420,10 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskLogoUrl: null,
             kioskTextColor: null,
             kioskButtonColor: null,
-            kioskButtonTextColor: null
+            kioskButtonTextColor: null,
+            kioskBgImageUrl: null,
+            kioskBgImageOpacity: 1.0,
+            kioskShowBgDots: true
         }));
         setIsGradient(true);
     };
@@ -454,6 +464,45 @@ export default function KioskWorkspaceCustomizerPage() {
     const handleDeleteLogo = () => {
         if (confirm("Apakah Anda yakin ingin menghapus logo kustom ini?")) {
             setSettings(prev => ({ ...prev, kioskLogoUrl: null }));
+        }
+    };
+
+    const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            alert("Harap unggah file gambar saja!");
+            return;
+        }
+
+        setUploadingBg(true);
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        try {
+            const res = await fetch('/api/admin/upload', {
+                method: 'POST',
+                body: formDataUpload,
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setSettings(prev => ({ ...prev, kioskBgImageUrl: data.url, kioskShowBgDots: false }));
+            } else {
+                const errData = await res.json();
+                alert(errData.error || 'Gagal mengunggah background. Silakan coba lagi.');
+            }
+        } catch (error) {
+            console.error('Failed to upload background:', error);
+            alert('Terjadi kesalahan saat mengunggah background.');
+        } finally {
+            setUploadingBg(false);
+        }
+    };
+
+    const handleDeleteBg = () => {
+        if (confirm("Apakah Anda yakin ingin menghapus gambar background kustom ini?")) {
+            setSettings(prev => ({ ...prev, kioskBgImageUrl: null }));
         }
     };
 
@@ -668,6 +717,84 @@ export default function KioskWorkspaceCustomizerPage() {
                                         <p className="text-[8px] text-[#8C7E6A]/75 italic mt-0.5 leading-tight">
                                             Logo akan tampil jika menggunakan tema kustom. Jika kosong, akan menampilkan icon default.
                                         </p>
+                                    </div>
+
+                                    {/* Kiosk Custom Background Upload Input */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Background Kustom Launcher (JPG/PNG)</label>
+                                        
+                                        {settings.kioskBgImageUrl ? (
+                                            <div className="flex items-center gap-3 p-3 bg-[#FAF8F5] border border-[#EAE1D3] rounded-2xl">
+                                                <div className="w-12 h-12 bg-white rounded-xl border border-[#EAE1D3] flex items-center justify-center p-1.5 relative overflow-hidden shadow-sm">
+                                                    <img src={settings.kioskBgImageUrl} alt="Background" className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] font-bold text-[#4A3F35] truncate">Background_Terunggah.jpg</p>
+                                                    <p className="text-[8px] text-emerald-600 font-bold uppercase tracking-wider">Aktif & Siap</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDeleteBg}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                                                    title="Hapus Background"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="relative group">
+                                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-[#EAE1D3] hover:border-[#A68B67] rounded-2xl cursor-pointer bg-[#FAF8F5] hover:bg-[#FDFBF9] transition-all p-4 text-center">
+                                                    <div className="flex flex-col items-center justify-center space-y-1">
+                                                        {uploadingBg ? (
+                                                            <div className="w-6 h-6 border-2 border-[#A68B67] border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <Upload className="w-5 h-5 text-[#8C7E6A] group-hover:scale-110 transition-transform duration-300" />
+                                                        )}
+                                                        <span className="text-[10px] font-extrabold text-[#4A3F35]">
+                                                            {uploadingBg ? "Mengunggah..." : "Pilih Gambar Background"}
+                                                        </span>
+                                                        <span className="text-[8px] text-[#8C7E6A]/70 uppercase tracking-widest font-black">Maksimal 10MB</span>
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleBgUpload}
+                                                        disabled={uploadingBg}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                            </div>
+                                        )}
+                                        {/* Slider Input for Background Image Opacity */}
+                                        {settings.kioskBgImageUrl && (
+                                            <div className="space-y-1.5 pt-1.5">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-[8px] text-[#8C7E6A] font-bold uppercase tracking-wider">Transparansi Background</label>
+                                                        <span className="text-[9px] font-black text-[#A68B67]">{Math.round((settings.kioskBgImageOpacity ?? 1.0) * 100)}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.05"
+                                                        value={settings.kioskBgImageOpacity ?? 1.0}
+                                                        onChange={e => setSettings(prev => ({ ...prev, kioskBgImageOpacity: parseFloat(e.target.value) }))}
+                                                        className="w-full h-1 bg-[#EAE1D3] rounded-lg appearance-none cursor-pointer accent-[#A68B67]"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Switch toggle for grid dots */}
+                                        <div className="flex items-center justify-between pt-2.5 border-t border-[#EAE1D3]/30 mt-2">
+                                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Tampilkan Titik-Titik Grid Background</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={settings.kioskShowBgDots ?? true}
+                                                onChange={e => setSettings(prev => ({ ...prev, kioskShowBgDots: e.target.checked }))}
+                                                className="w-4 h-4 accent-[#A68B67] cursor-pointer"
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Welcome Message Input */}
@@ -1198,12 +1325,27 @@ export default function KioskWorkspaceCustomizerPage() {
                                 )}
 
                                 {/* Immersive Grid Dots Pattern Background */}
-                                <div 
-                                    className="absolute inset-0 opacity-[0.08] pointer-events-none [background-size:24px_24px] z-0" 
-                                    style={{ 
-                                        backgroundImage: `radial-gradient(${isLight ? '#4A3F35' : '#ffffff'} 1.5px, transparent 1.5px)` 
-                                    }} 
-                                />
+                                {/* Welcome Screen Custom Background Image */}
+                                {previewScreen === "launcher" && settings.kioskBgImageUrl && (
+                                    <div 
+                                        className="absolute inset-0 pointer-events-none transition-all duration-500 z-0"
+                                        style={{
+                                            backgroundImage: `url(${settings.kioskBgImageUrl})`,
+                                            backgroundSize: 'cover',
+                                            backgroundPosition: 'center',
+                                            opacity: settings.kioskBgImageOpacity ?? 1.0,
+                                        }}
+                                    />
+                                )}
+
+                                {(settings.kioskShowBgDots ?? true) && (
+                                    <div 
+                                        className="absolute inset-0 opacity-[0.08] pointer-events-none [background-size:24px_24px] z-0" 
+                                        style={{ 
+                                            backgroundImage: `radial-gradient(${isLight ? '#4A3F35' : '#ffffff'} 1.5px, transparent 1.5px)` 
+                                        }} 
+                                    />
+                                )}
 
                                 {/* 1. MOCK SCREEN: LAUNCHER (WELCOME PAGE) */}
                                 {previewScreen === "launcher" && (
