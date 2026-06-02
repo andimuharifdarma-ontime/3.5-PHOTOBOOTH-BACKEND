@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 
         if (uploadError) {
             console.error('Supabase upload error:', uploadError);
-            return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+            return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
         }
 
         // Get public URL
@@ -100,8 +100,8 @@ export async function POST(request: Request) {
             url,
             filename,
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Upload failed:', error);
-        return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+        return NextResponse.json({ error: `Upload failed: ${error.message || error}` }, { status: 500 });
     }
 }

@@ -124,6 +124,39 @@ export default function KioskWorkspaceCustomizerPage() {
     const [newPresetName, setNewPresetName] = useState("");
     const [isGradient, setIsGradient] = useState(true);
 
+    // Beautiful Premium Custom Notification Dialog State
+    const [alertModal, setAlertModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: "success" | "error" | "info" | "confirm";
+        onConfirm?: () => void;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "info"
+    });
+
+    const showAlert = (message: string, type: "success" | "error" | "info" = "info", title?: string) => {
+        setAlertModal({
+            isOpen: true,
+            title: title || (type === "error" ? "Kesalahan" : type === "success" ? "Berhasil" : "Informasi"),
+            message,
+            type,
+        });
+    };
+
+    const showConfirm = (message: string, onConfirm: () => void, title: string = "Konfirmasi Hapus") => {
+        setAlertModal({
+            isOpen: true,
+            title,
+            message,
+            type: "confirm",
+            onConfirm
+        });
+    };
+
     // Custom theme presets list
     const [customPresets, setCustomPresets] = useState<{
         id: string;
@@ -360,7 +393,7 @@ export default function KioskWorkspaceCustomizerPage() {
         
         const themeName = newPresetName.trim();
         if (!themeName) {
-            alert("Harap masukkan nama tema!");
+            showAlert("Harap masukkan nama tema!", "error");
             return;
         }
 
@@ -400,11 +433,12 @@ export default function KioskWorkspaceCustomizerPage() {
 
     const handleDeleteCustomPreset = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm("Apakah Anda yakin ingin menghapus tema kustom ini?")) return;
-        
-        const updated = customPresets.filter(p => p.id !== id);
-        setCustomPresets(updated);
-        localStorage.setItem("kiosk_custom_presets", JSON.stringify(updated));
+        showConfirm("Apakah Anda yakin ingin menghapus tema kustom ini?", () => {
+            const updated = customPresets.filter(p => p.id !== id);
+            setCustomPresets(updated);
+            localStorage.setItem("kiosk_custom_presets", JSON.stringify(updated));
+            showAlert("Tema kustom berhasil dihapus.", "success");
+        });
     };
 
     const handleResetToDefault = () => {
@@ -433,7 +467,7 @@ export default function KioskWorkspaceCustomizerPage() {
         if (!file) return;
 
         if (file.type !== "image/png") {
-            alert("Harap unggah file logo dalam format PNG saja!");
+            showAlert("Harap unggah file logo dalam format PNG saja!", "error");
             return;
         }
 
@@ -442,29 +476,35 @@ export default function KioskWorkspaceCustomizerPage() {
         formDataUpload.append('file', file);
 
         try {
-            const res = await fetch('/api/admin/upload', {
+            const res = await fetch(`/api/admin/upload?userId=${userId || ''}`, {
                 method: 'POST',
                 body: formDataUpload,
             });
             if (res.ok) {
                 const data = await res.json();
                 setSettings(prev => ({ ...prev, kioskLogoUrl: data.url }));
+                showAlert("Logo berhasil diunggah!", "success");
             } else {
-                const errData = await res.json();
-                alert(errData.error || 'Gagal mengunggah logo. Silakan coba lagi.');
+                let errMsg = 'Gagal mengunggah logo. Silakan coba lagi.';
+                try {
+                    const errData = await res.json();
+                    errMsg = errData.error || errMsg;
+                } catch (_) {}
+                showAlert(errMsg, "error");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to upload logo:', error);
-            alert('Terjadi kesalahan saat mengunggah logo.');
+            showAlert('Terjadi kesalahan saat mengunggah logo: ' + (error.message || error), 'error');
         } finally {
             setUploadingLogo(false);
         }
     };
 
     const handleDeleteLogo = () => {
-        if (confirm("Apakah Anda yakin ingin menghapus logo kustom ini?")) {
+        showConfirm("Apakah Anda yakin ingin menghapus logo kustom ini?", () => {
             setSettings(prev => ({ ...prev, kioskLogoUrl: null }));
-        }
+            showAlert("Logo kustom berhasil dihapus.", "success");
+        });
     };
 
     const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -472,7 +512,7 @@ export default function KioskWorkspaceCustomizerPage() {
         if (!file) return;
 
         if (!file.type.startsWith("image/")) {
-            alert("Harap unggah file gambar saja!");
+            showAlert("Harap unggah file gambar saja!", "error");
             return;
         }
 
@@ -481,29 +521,35 @@ export default function KioskWorkspaceCustomizerPage() {
         formDataUpload.append('file', file);
 
         try {
-            const res = await fetch('/api/admin/upload', {
+            const res = await fetch(`/api/admin/upload?userId=${userId || ''}`, {
                 method: 'POST',
                 body: formDataUpload,
             });
             if (res.ok) {
                 const data = await res.json();
                 setSettings(prev => ({ ...prev, kioskBgImageUrl: data.url, kioskShowBgDots: false }));
+                showAlert("Background berhasil diunggah!", "success");
             } else {
-                const errData = await res.json();
-                alert(errData.error || 'Gagal mengunggah background. Silakan coba lagi.');
+                let errMsg = 'Gagal mengunggah background. Silakan coba lagi.';
+                try {
+                    const errData = await res.json();
+                    errMsg = errData.error || errMsg;
+                } catch (_) {}
+                showAlert(errMsg, "error");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to upload background:', error);
-            alert('Terjadi kesalahan saat mengunggah background.');
+            showAlert('Terjadi kesalahan saat mengunggah background: ' + (error.message || error), 'error');
         } finally {
             setUploadingBg(false);
         }
     };
 
     const handleDeleteBg = () => {
-        if (confirm("Apakah Anda yakin ingin menghapus gambar background kustom ini?")) {
+        showConfirm("Apakah Anda yakin ingin menghapus gambar background kustom ini?", () => {
             setSettings(prev => ({ ...prev, kioskBgImageUrl: null }));
-        }
+            showAlert("Background kustom berhasil dihapus.", "success");
+        });
     };
 
     // Helper preview styling mappings for mock
@@ -1790,6 +1836,82 @@ export default function KioskWorkspaceCustomizerPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Beautiful Premium Alert/Confirm Dialog Modal */}
+            {alertModal.isOpen && (
+                <div className="fixed inset-0 bg-[#0C0A09]/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4 transition-all duration-300">
+                    <div className="w-full max-w-sm bg-white border border-[#EAE1D3] rounded-[28px] shadow-2xl p-6 md:p-8 space-y-6 relative overflow-hidden transform transition-all duration-300 scale-100 text-center flex flex-col items-center">
+                        <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-[#A68B67]/5 rounded-full blur-[30px] pointer-events-none -translate-y-1/2 translate-x-1/4" />
+                        
+                        {/* Icon based on notification type */}
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center relative z-10 mb-2 shadow-inner bg-[#FAF8F5]">
+                            {alertModal.type === "success" && (
+                                <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                                    <CheckCircle2 className="w-6 h-6 text-emerald-500 animate-bounce" />
+                                </div>
+                            )}
+                            {alertModal.type === "error" && (
+                                <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center">
+                                    <ShieldAlert className="w-6 h-6 text-rose-500 animate-pulse" />
+                                </div>
+                            )}
+                            {alertModal.type === "info" && (
+                                <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
+                                    <Sparkles className="w-6 h-6 text-amber-500" />
+                                </div>
+                            )}
+                            {alertModal.type === "confirm" && (
+                                <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
+                                    <ShieldAlert className="w-6 h-6 text-amber-500" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Title & Message */}
+                        <div className="space-y-2 relative z-10 w-full">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-[#4A3F35]">
+                                {alertModal.title}
+                            </h3>
+                            <p className="text-xs font-bold text-[#8C7E6A] leading-relaxed">
+                                {alertModal.message}
+                            </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 pt-2 w-full relative z-10">
+                            {alertModal.type === "confirm" ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+                                        className="flex-1 py-3 border border-[#EAE1D3] bg-[#FAF8F5] hover:bg-[#F5F1EA] text-[#8C7E6A] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAlertModal(prev => ({ ...prev, isOpen: false }));
+                                            if (alertModal.onConfirm) alertModal.onConfirm();
+                                        }}
+                                        className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-rose-500/20 transition-all"
+                                    >
+                                        Ya, Lanjutkan
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="w-full py-3 bg-[#A68B67] hover:bg-[#8C7E6A] text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-[#A68B67]/20 transition-all"
+                                >
+                                    Tutup
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
