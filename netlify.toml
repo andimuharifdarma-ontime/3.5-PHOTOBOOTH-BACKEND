@@ -1,3 +1,7 @@
+# LEGACY: Netlify is a secondary deployment target.
+# Primary production host is Vercel (see vercel.json + ../VERCEL_DEPLOYMENT.md).
+# Do not deploy the same branch to both Vercel and Netlify simultaneously.
+
 [build]
   command = "npm run build"
   publish = ".next"

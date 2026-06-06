@@ -24,12 +24,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (isElectron()) {
       setShowIndicator(true);
       
-      const apiBaseUrl = window.location.origin;
-      const authToken = (session as any)?.accessToken || '';
-
       syncManager.init({
-        apiBaseUrl,
-        authToken,
+        apiBaseUrl: window.location.origin,
       });
 
       syncManager.onStatusChange((newStatus, count) => {

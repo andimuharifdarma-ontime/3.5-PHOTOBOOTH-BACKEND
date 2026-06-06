@@ -116,7 +116,7 @@ export default function Sidebar({
                                     <img src="/logo/LOGO5.png" alt="Dove Logo" className="w-8 h-8 object-contain" />
                                 </div>
                                 <div className="flex flex-col whitespace-nowrap">
-                                    <h1 className="text-base font-serif italic tracking-wide text-[#FDFBF7]">Dove <span className="font-sans not-italic font-black text-[#A68B67] uppercase text-[10px] tracking-[0.2em]">Photobooth</span></h1>
+                                    <h1 className="text-base font-sans italic tracking-wide text-[#FDFBF7]">Dove <span className="font-sans not-italic font-black text-[#A68B67] uppercase text-[10px] tracking-[0.2em]">Photobooth</span></h1>
                                     <p className="text-[7px] text-[#A68B67] font-black tracking-[0.2em] uppercase opacity-70">part of Dovelens.ft</p>
                                 </div>
                             </div>
@@ -160,7 +160,7 @@ export default function Sidebar({
             {/* Profile Section */}
             <div className="px-4 py-6 bg-white/[0.02] flex justify-center">
                 <div className="flex items-center gap-4 w-full justify-center">
-                    <div className="w-10 h-10 shrink-0 rounded-full bg-[#A68B67]/20 border border-[#A68B67]/30 flex items-center justify-center text-[#A68B67] font-serif italic text-lg">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-[#A68B67]/20 border border-[#A68B67]/30 flex items-center justify-center text-[#A68B67] font-sans italic text-lg">
                         {session?.user?.name?.[0] || session?.user?.email?.[0]?.toUpperCase() || 'U'}
                     </div>
                     {!sidebarCollapsed && (

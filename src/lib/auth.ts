@@ -72,9 +72,6 @@ export const authOptions: NextAuthOptions = {
                 (session.user as any).id = token.id;
                 (session.user as any).canManageThemes = token.canManageThemes;
                 (session.user as any).isPaymentEnabled = token.isPaymentEnabled;
-                // Expose the encoded token to the client for background sync
-                // In NextAuth with JWT strategy, we can use the token as a Bearer token if needed
-                (session as any).accessToken = token; 
             }
             return session;
         },

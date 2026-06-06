@@ -225,3 +225,42 @@ export const RATE_LIMIT_GENERAL: RateLimiterConfig = {
     maxRequests: 60,
     windowSeconds: 60,
 };
+
+/** Middleware login: 5 attempts per 60 seconds per IP */
+export const RATE_LIMIT_MW_LOGIN: RateLimiterConfig = {
+    maxRequests: 5,
+    windowSeconds: 60,
+};
+
+/** Middleware auth API: 10 attempts per 60 seconds per IP */
+export const RATE_LIMIT_MW_AUTH: RateLimiterConfig = {
+    maxRequests: 10,
+    windowSeconds: 60,
+};
+
+/** Middleware admin API: 100 requests per 60 seconds per IP */
+export const RATE_LIMIT_MW_ADMIN: RateLimiterConfig = {
+    maxRequests: 100,
+    windowSeconds: 60,
+};
+
+/**
+ * Edge-compatible rate limit check for Next.js middleware.
+ * Uses Upstash Redis when configured, otherwise in-memory fallback.
+ */
+export async function checkMiddlewareRateLimit(
+    ip: string,
+    action: string,
+    config: RateLimiterConfig
+): Promise<{ allowed: boolean; retryAfter: number; headers: Record<string, string> }> {
+    const fakeRequest = new Request('http://localhost', {
+        headers: { 'x-forwarded-for': ip },
+    });
+    const result = await checkRateLimitAsync(fakeRequest, `mw:${action}`, config);
+    const retryAfter = parseInt(result.headers['Retry-After'] || result.headers['X-RateLimit-Reset'] || '60', 10);
+    return {
+        allowed: result.allowed,
+        retryAfter,
+        headers: result.headers,
+    };
+}

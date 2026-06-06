@@ -33,13 +33,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Success - redirect dengan refresh token
-    return NextResponse.redirect(
-      new URL(
-        `/admin/oauth-setup?success=true&refresh_token=${encodeURIComponent(result.refresh_token)}`,
-        req.url
-      )
+    const response = NextResponse.redirect(
+      new URL('/admin/oauth-setup?success=true', req.url)
     );
+    response.cookies.set('google_oauth_refresh_token', result.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 300,
+      path: '/',
+    });
+    return response;
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     return NextResponse.redirect(

@@ -25,14 +25,11 @@ class SyncManager {
   private statusCallbacks: StatusChangeCallback[] = [];
   private currentStatus: ConnectionStatus = 'online';
   private apiBaseUrl: string = '';
-  private authToken: string = '';
-
   /**
    * Inisialisasi sync manager
    */
-  init(config: { apiBaseUrl: string; authToken: string }) {
+  init(config: { apiBaseUrl: string }) {
     this.apiBaseUrl = config.apiBaseUrl;
-    this.authToken = config.authToken;
 
     // Listen for online/offline events
     if (typeof window !== 'undefined') {
@@ -119,9 +116,9 @@ class SyncManager {
     try {
       const response = await fetch(`${this.apiBaseUrl}/api/sync`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.authToken}`,
         },
         body: JSON.stringify({
           orders: unsyncedOrders.map((order) => ({

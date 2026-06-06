@@ -1,5 +1,5 @@
-import VideoStartPage from '@/components/views/VideoStartPage';
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return <VideoStartPage />;
+  redirect('/admin');
 }

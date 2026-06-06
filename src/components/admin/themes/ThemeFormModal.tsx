@@ -99,7 +99,7 @@ export default function ThemeFormModal({
                             type="text"
                             value={formData.name}
                             onChange={(e) => setFormData((prev: any) => ({ ...prev, name: e.target.value }))}
-                            className="w-full bg-[#F5F1EA] px-6 py-4 border border-[#EAE1D3] rounded-sm focus:outline-none focus:border-[#A68B67] text-[#4A3F35] font-serif italic text-xl transition-all"
+                            className="w-full bg-[#F5F1EA] px-6 py-4 border border-[#EAE1D3] rounded-sm focus:outline-none focus:border-[#A68B67] text-[#4A3F35] font-sans italic text-xl transition-all"
                             placeholder="Contoh: Ethereal Essence"
                             required
                         />
@@ -127,7 +127,7 @@ export default function ThemeFormModal({
                         <textarea
                             value={formData.description}
                             onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))}
-                            className="w-full bg-[#F5F1EA] px-6 py-4 border border-[#EAE1D3] rounded-sm focus:outline-none focus:border-[#A68B67] text-[#4A3F35] font-serif italic text-sm transition-all"
+                            className="w-full bg-[#F5F1EA] px-6 py-4 border border-[#EAE1D3] rounded-sm focus:outline-none focus:border-[#A68B67] text-[#4A3F35] font-sans italic text-sm transition-all"
                             placeholder="Gambarkan jiwa dari koleksi tema ini..."
                             rows={3}
                         />

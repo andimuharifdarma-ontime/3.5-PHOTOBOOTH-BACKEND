@@ -112,6 +112,26 @@ export const settingsSchema = z.object({
 });
 
 // ==========================
+// Offline Session Schema
+// ==========================
+
+export const offlineSessionSchema = z.object({
+  userName: z.string().min(1).max(100).trim(),
+  frameId: z.string().min(1).max(100),
+  frameName: z.string().max(200).optional(),
+  quantity: z.number().int().min(1).max(20).optional().default(1),
+  imageUrl: z.string().max(500).optional().default(''),
+});
+
+// ==========================
+// Live Photo Upload Schema
+// ==========================
+
+export const livePhotoUploadSchema = z.object({
+  photoId: z.string().regex(/^[a-zA-Z0-9_-]{8,128}$/, 'Invalid photo ID format'),
+});
+
+// ==========================
 // Helpers
 // ==========================
 

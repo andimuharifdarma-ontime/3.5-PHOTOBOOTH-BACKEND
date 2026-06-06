@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { authenticateRequest, canAccessOrder } from '@/lib/api-auth';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const auth = await authenticateRequest(request);
+        if (!auth) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { id: sessionId } = await params;
 
         if (!sessionId) {
             return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
         }
 
-        // Cari order terbaru yang memiliki sessionId ini di kolom imageUrl
         const order = await prisma.printOrder.findFirst({
             where: {
-                imageUrl: sessionId
+                imageUrl: sessionId,
+                adminUserId: auth.user.role === 'ADMIN' ? undefined : auth.user.id,
             },
             orderBy: {
                 createdAt: 'desc'
@@ -24,7 +30,8 @@ export async function GET(
                 paymentStatus: true,
                 id: true,
                 userName: true,
-                quantity: true
+                quantity: true,
+                adminUserId: true,
             }
         });
 
@@ -35,8 +42,12 @@ export async function GET(
             });
         }
 
+        if (!(await canAccessOrder(auth, order))) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         return NextResponse.json({
-            status: order.paymentStatus, // 'pending', 'paid', 'printed'
+            status: order.paymentStatus,
             orderId: order.id,
             userName: order.userName,
             quantity: order.quantity

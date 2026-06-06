@@ -41,8 +41,8 @@ export default function DeleteConfirmModal({
                         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-8 border border-red-100">
                             <AlertTriangle className="w-10 h-10 text-red-500" />
                         </div>
-                        <h3 className="text-3xl font-serif italic text-[#4A3F35] mb-4">{title}</h3>
-                        <p className="text-[#8C7E6A] font-serif italic text-sm mb-10 opacity-80 leading-relaxed">
+                        <h3 className="text-3xl font-sans italic text-[#4A3F35] mb-4">{title}</h3>
+                        <p className="text-[#8C7E6A] font-sans italic text-sm mb-10 opacity-80 leading-relaxed">
                             {description}
                         </p>
                         <div className="flex gap-4">

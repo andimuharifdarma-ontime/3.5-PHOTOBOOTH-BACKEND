@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from '@/lib/api-auth';
+import { validatePhotoId, validateUploadBuffer } from '@/lib/upload-validation';
 
 const BUCKET_NAME = 'photobooth-images';
 
-// Lazy Supabase client (only created when needed)
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,13 +19,16 @@ export async function GET(
   let { id } = await params;
   id = id.replace(/\.+$/, '');
 
-  // 0) Expiration check based on timestamp embedded in ID
+  if (!validatePhotoId(id)) {
+    return new NextResponse('Invalid ID', { status: 400 });
+  }
+
   const parts = id.split('-');
   const timestampStr = parts[parts.length - 1];
   const timestamp = parseInt(timestampStr, 10);
 
   if (!isNaN(timestamp) && timestamp > 1000000000000 && timestamp < 2500000000000) {
-    let retentionDays = 7; // default fallback
+    let retentionDays = 7;
     try {
       const prismaModule = await import('@/lib/prisma');
       const prisma = prismaModule.default;
@@ -46,11 +50,9 @@ export async function GET(
     }
   }
 
-  // 1) Try Vercel Blob (if configured)
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (token) {
     try {
-      // @ts-ignore - types for @vercel/blob not needed at build time here
       const { head } = await import('@vercel/blob');
       const tryExts = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
       for (const ext of tryExts) {
@@ -64,11 +66,9 @@ export async function GET(
     } catch { }
   }
 
-  // 2) Try Supabase Storage
   const supabase = getSupabase();
   const tryExts = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
 
-  // Try direct checking via HEAD request (extremely fast and robust, avoids list pagination limits)
   for (const ext of tryExts) {
     const storagePath = `images/${id}.${ext}`;
     const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath);
@@ -86,7 +86,6 @@ export async function GET(
     }
   }
 
-  // Fallback: Try Supabase list with increased limit
   const { data: files } = await supabase.storage
     .from(BUCKET_NAME)
     .list('images', {
@@ -98,11 +97,10 @@ export async function GET(
     for (const ext of tryExts) {
       const expectedName = `${id}.${ext}`;
       const foundFile = files.find(f => f.name.toLowerCase() === expectedName.toLowerCase());
-      
+
       if (foundFile) {
         const storagePath = `images/${expectedName}`;
         const isDownload = _req.nextUrl.searchParams.get('download') === '1';
-
         const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath, { download: isDownload });
         return NextResponse.redirect(urlData.publicUrl, 307);
       }
@@ -116,30 +114,37 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requireAuth(req);
+  } catch (response) {
+    if (response instanceof Response) return response;
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let { id } = await params;
   id = id.replace(/\.+$/, '');
-  // Get the pure ArrayBuffer
+
+  if (!validatePhotoId(id)) {
+    return NextResponse.json({ error: 'Invalid photo ID' }, { status: 400 });
+  }
+
   const arrayBuffer = await req.arrayBuffer();
   const mime = req.headers.get('content-type') || 'image/png';
+  const validation = validateUploadBuffer(arrayBuffer, mime);
 
-  // Determine file extension
-  let ext = 'bin';
-  if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
-  else if (mime.includes('png')) ext = 'png';
-  else if (mime.includes('gif')) ext = 'gif';
-  else if (mime.includes('mp4')) ext = 'mp4';
-  else if (mime.includes('webm')) ext = 'webm';
-  else if (mime.includes('json')) ext = 'json';
+  if (!validation.ok) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
 
-  // 1) Try Vercel Blob (if configured)
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (token) {
+  const ext = validation.ext;
+
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  if (blobToken) {
     try {
-      // @ts-ignore
       const { put } = await import('@vercel/blob');
       const res = await put(`images/${id}.${ext}`, new Blob([arrayBuffer], { type: mime }), {
         access: 'public',
-        token
+        token: blobToken
       });
       return NextResponse.json({ ok: true, url: res.url });
     } catch (e) {
@@ -147,7 +152,6 @@ export async function POST(
     }
   }
 
-  // 2) Upload to Supabase Storage directly with arrayBuffer
   const supabase = getSupabase();
   const storagePath = `images/${id}.${ext}`;
 
@@ -163,7 +167,6 @@ export async function POST(
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 
-  // Get public URL
   const { data: urlData } = supabase.storage
     .from(BUCKET_NAME)
     .getPublicUrl(storagePath);

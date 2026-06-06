@@ -88,9 +88,9 @@ export default function FilterCard({
             {/* Content */}
             <div className="p-6 flex-1 flex flex-col bg-[#F5F1EA]">
                 <div className="space-y-3 flex-1">
-                    <h3 className="text-xl font-serif italic text-[#4A3F35] lowercase first-letter:uppercase">{filter.name}</h3>
+                    <h3 className="text-xl font-sans italic text-[#4A3F35] lowercase first-letter:uppercase">{filter.name}</h3>
                     {filter.description ? (
-                        <p className="text-[10px] text-[#8C7E6A] font-serif italic leading-relaxed line-clamp-2">{filter.description}</p>
+                        <p className="text-[10px] text-[#8C7E6A] font-sans italic leading-relaxed line-clamp-2">{filter.description}</p>
                     ) : (
                         <p className="text-[9px] text-[#D1C4B2] font-black uppercase tracking-widest italic opacity-50">Filter Tanpa Deskripsi</p>
                     )}

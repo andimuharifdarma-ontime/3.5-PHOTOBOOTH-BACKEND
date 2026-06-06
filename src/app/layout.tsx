@@ -53,7 +53,7 @@ export default async function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/logo/LOGO5.png" />
         <link rel="shortcut icon" type="image/png" href="/logo/LOGO5.png" />
       </head>
-      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <AuthProvider>
           <SyncProvider>
             <PhotoProvider>

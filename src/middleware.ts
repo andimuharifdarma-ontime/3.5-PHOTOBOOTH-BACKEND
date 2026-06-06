@@ -1,33 +1,12 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-// ==========================================
-// Simple In-Memory Rate Limiter for Middleware
-// (Separate from lib/rate-limiter which is for API route handlers)
-// ==========================================
-interface RateLimitEntry {
-    count: number;
-    resetTime: number;
-}
-
-const middlewareRateStore = new Map<string, RateLimitEntry>();
-
-// Cleanup old entries every 5 minutes
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
-if (!cleanupTimer) {
-    cleanupTimer = setInterval(() => {
-        const now = Date.now();
-        for (const [key, entry] of middlewareRateStore.entries()) {
-            if (now > entry.resetTime) {
-                middlewareRateStore.delete(key);
-            }
-        }
-    }, 5 * 60 * 1000);
-    if (cleanupTimer && typeof cleanupTimer === 'object' && 'unref' in cleanupTimer) {
-        (cleanupTimer as NodeJS.Timeout).unref();
-    }
-}
+import {
+    checkMiddlewareRateLimit,
+    RATE_LIMIT_MW_LOGIN,
+    RATE_LIMIT_MW_AUTH,
+    RATE_LIMIT_MW_ADMIN,
+} from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest): string {
     const forwarded = req.headers.get("x-forwarded-for");
@@ -37,39 +16,9 @@ function getClientIp(req: NextRequest): string {
     return "unknown";
 }
 
-function checkMiddlewareRateLimit(
-    ip: string,
-    action: string,
-    maxRequests: number,
-    windowSeconds: number
-): { allowed: boolean; retryAfter: number } {
-    const key = `mw:${action}:${ip}`;
-    const now = Date.now();
-
-    let entry = middlewareRateStore.get(key);
-
-    if (!entry || now > entry.resetTime) {
-        entry = { count: 0, resetTime: now + windowSeconds * 1000 };
-    }
-
-    entry.count++;
-    middlewareRateStore.set(key, entry);
-
-    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
-
-    return {
-        allowed: entry.count <= maxRequests,
-        retryAfter,
-    };
-}
-
-// ==========================================
-// CSP Nonce Generation
-// ==========================================
 function generateNonce(): string {
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
-    // Convert to base64
     let binary = '';
     for (let i = 0; i < array.length; i++) {
         binary += String.fromCharCode(array[i]);
@@ -81,8 +30,6 @@ function buildCspHeader(nonce: string): string {
     const isDev = process.env.NODE_ENV === 'development';
     const csp = [
         `default-src 'self'`,
-        // Next.js requires 'unsafe-inline' for its hydration/inline scripts on Netlify.
-        // In dev, also allow 'unsafe-eval' for React debugging tools.
         `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.google.com https://www.gstatic.com https://accounts.google.com`,
         `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
         `img-src 'self' blob: data: https://*.supabase.co https://*.vercel-storage.com https://*.googleusercontent.com https://*.doku.com https://*.google.com https://*.gstatic.com https://*.vercel.app`,
@@ -99,8 +46,6 @@ function buildCspHeader(nonce: string): string {
     return csp.join('; ');
 }
 
-// CORS preflight handler for API routes
-// Supports requests from: web browser, Electron desktop app, and Vercel deployment
 function getAllowedOrigin(req: NextRequest): string {
     const origin = req.headers.get('origin') || '';
     const allowedOrigins = [
@@ -108,21 +53,17 @@ function getAllowedOrigin(req: NextRequest): string {
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:3003',
-        // Electron app uses file:// protocol or custom scheme
         'app://.',
     ];
 
-    // Allow any Vercel preview/production URL
     if (origin.endsWith('.vercel.app') || origin.endsWith('.vercel.sh')) {
         return origin;
     }
 
-    // Allow configured origins
     if (allowedOrigins.includes(origin)) {
         return origin;
     }
 
-    // Default fallback
     return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 }
 
@@ -144,20 +85,15 @@ function handleCorsPreFlight(req: NextRequest): NextResponse | null {
 }
 
 export default withAuth(
-    function middleware(req) {
-        // Handle CORS preflight first
+    async function middleware(req) {
         const corsResponse = handleCorsPreFlight(req);
         if (corsResponse) return corsResponse;
 
         const pathname = req.nextUrl.pathname;
 
-        // ==========================
-        // PUBLIC KIOSK API BYPASS (GET only)
-        // Allows the kiosk to fetch settings, profile, and themes unauthenticated.
-        // ==========================
         const isPublicKioskApi = (
-            pathname.includes("/api/admin/settings") || 
-            pathname.includes("/api/admin/profile") || 
+            pathname.includes("/api/admin/settings") ||
+            pathname.includes("/api/admin/profile") ||
             pathname.includes("/api/themes")
         ) && req.method === "GET";
 
@@ -171,12 +107,8 @@ export default withAuth(
 
         const ip = getClientIp(req);
 
-        // ==========================
-        // Rate Limiting: Login Endpoint
-        // 5 attempts per 60 seconds per IP
-        // ==========================
         if (pathname === "/login" && req.method === "POST") {
-            const rl = checkMiddlewareRateLimit(ip, "login", 5, 60);
+            const rl = await checkMiddlewareRateLimit(ip, "login", RATE_LIMIT_MW_LOGIN);
             if (!rl.allowed) {
                 return new NextResponse(
                     JSON.stringify({ error: "Terlalu banyak percobaan login. Coba lagi nanti." }),
@@ -191,12 +123,8 @@ export default withAuth(
             }
         }
 
-        // ==========================
-        // Rate Limiting: Auth API (NextAuth signIn)
-        // 10 attempts per 60 seconds per IP
-        // ==========================
         if (pathname.startsWith("/api/auth") && req.method === "POST") {
-            const rl = checkMiddlewareRateLimit(ip, "auth-api", 10, 60);
+            const rl = await checkMiddlewareRateLimit(ip, "auth-api", RATE_LIMIT_MW_AUTH);
             if (!rl.allowed) {
                 return new NextResponse(
                     JSON.stringify({ error: "Too many authentication attempts. Try again later." }),
@@ -211,12 +139,8 @@ export default withAuth(
             }
         }
 
-        // ==========================
-        // Rate Limiting: Admin API routes
-        // 100 requests per 60 seconds per IP
-        // ==========================
         if (pathname.startsWith("/api/admin")) {
-            const rl = checkMiddlewareRateLimit(ip, "admin-api", 100, 60);
+            const rl = await checkMiddlewareRateLimit(ip, "admin-api", RATE_LIMIT_MW_ADMIN);
             if (!rl.allowed) {
                 return new NextResponse(
                     JSON.stringify({ error: "Rate limit exceeded. Please slow down." }),
@@ -242,7 +166,6 @@ export default withAuth(
             if (isAuth) {
                 return NextResponse.redirect(new URL("/admin", req.url));
             }
-            // For login page, just pass through with CSP nonce
             const nonce = generateNonce();
             const requestHeaders = new Headers(req.headers);
             requestHeaders.set("x-nonce", nonce);
@@ -254,17 +177,8 @@ export default withAuth(
             return response;
         }
 
-        // ==========================
-        // Public API routes (no auth required)
-        // /api/photo/* - QR scan photo viewer
-        // /api/cron/* - Vercel cron jobs (protected by CRON_SECRET)
-        // ==========================
         const isPublicApi = pathname.startsWith("/api/photo") || pathname.startsWith("/api/cron");
 
-        // ==========================
-        // Centralized Admin API Protection
-        // All /api/admin/* routes require authentication
-        // ==========================
         if (isAdminApi && !isPublicApi) {
             if (!isAuth) {
                 const allowedOrigin = getAllowedOrigin(req);
@@ -272,7 +186,7 @@ export default withAuth(
                     JSON.stringify({ error: "Unauthorized" }),
                     {
                         status: 401,
-                        headers: { 
+                        headers: {
                             "Content-Type": "application/json",
                             "Access-Control-Allow-Origin": allowedOrigin,
                             "Access-Control-Allow-Credentials": "true"
@@ -293,15 +207,11 @@ export default withAuth(
                 );
             }
 
-            // Role based protection for /admin/users
             if (isUserManagementPage && token.role !== "ADMIN") {
                 return NextResponse.redirect(new URL("/admin", req.url));
             }
         }
 
-        // ==========================
-        // CSP Nonce: Generate and inject for all page requests
-        // ==========================
         const nonce = generateNonce();
         const requestHeaders = new Headers(req.headers);
         requestHeaders.set("x-nonce", nonce);
@@ -310,7 +220,6 @@ export default withAuth(
             request: { headers: requestHeaders },
         });
 
-        // Add CORS headers for API routes
         if (pathname.startsWith("/api/")) {
             const allowedOrigin = getAllowedOrigin(req);
             response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
@@ -326,7 +235,6 @@ export default withAuth(
     {
         callbacks: {
             async authorized() {
-                // Return true so middleware function above always runs
                 return true;
             },
         },
@@ -334,5 +242,5 @@ export default withAuth(
 );
 
 export const config = {
-    matcher: ["/admin/:path*", "/login", "/api/:path*", "/photo/:path*", "/((?!_next/static|_next/image|favicon.ico|logo/).*)"],
+    matcher: ["/admin/:path*", "/login", "/api/:path*", "/photo/:path*", "/download/:path*"],
 };

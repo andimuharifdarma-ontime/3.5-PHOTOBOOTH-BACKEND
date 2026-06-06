@@ -14,10 +14,16 @@ const OAuthSetupClient: React.FC = () => {
   useEffect(() => {
     const success = searchParams.get('success');
     const errorParam = searchParams.get('error');
-    const tokenParam = searchParams.get('refresh_token');
 
-    if (success === 'true' && tokenParam) {
-      setRefreshToken(tokenParam);
+    if (success === 'true') {
+      fetch('/api/auth/google/token')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.refresh_token) {
+            setRefreshToken(data.refresh_token);
+          }
+        })
+        .catch(() => setError('failed_to_fetch_token'));
     } else if (errorParam) {
       setError(errorParam);
     }

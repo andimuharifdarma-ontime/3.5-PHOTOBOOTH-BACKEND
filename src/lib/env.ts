@@ -10,6 +10,7 @@ const requiredServerEnvVars = [
   'DATABASE_URL',
   'NEXTAUTH_SECRET',
   'NEXTAUTH_URL',
+  'CRON_SECRET',
 ] as const;
 
 const requiredPublicEnvVars = [
@@ -34,6 +35,8 @@ const optionalServerEnvVars = [
   'DOKU_PUBLIC_KEY',
   'SMTP_EMAIL',
   'SMTP_PASSWORD',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
 ] as const;
 
 /**

@@ -33,6 +33,17 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Python virtual environments
+.venv/
+venv/
+
+# Dev scratch / one-off codemods
+scratch/
+scripts/legacy/
+
+# Build artifacts
+dist/
+
 # vercel
 .vercel
 
