@@ -587,18 +587,34 @@ export default function KioskWorkspaceCustomizerPage() {
 
     const getCardStyle = (isActive: boolean) => {
         const theme = settings.kioskThemePreset;
+        const accent = getAccentColor();
+        const cardBg = settings.kioskBgGradientStart || "#FAF6F0";
+        const textHex = settings.kioskTextColor || "#4A3F35";
+        const btnBg = settings.kioskButtonColor || accent;
+        const btnText = settings.kioskButtonTextColor || "#FFFFFF";
+
         if (theme === "pop_art") {
             return {
-                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] border-[#1C1917] rounded-xl ${isActive ? 'bg-[#FFF1F2] shadow-[4px_4px_0px_0px_#E11D48] scale-105 z-10' : 'bg-[#FFF1F2]/50 opacity-60 hover:opacity-100'}`,
+                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] rounded-xl ${isActive ? 'scale-105 z-10' : 'opacity-60 hover:opacity-100'}`,
                 fontClass: "font-black",
-                style: { color: isActive ? '#E11D48' : 'inherit' }
+                style: {
+                    backgroundColor: isActive ? cardBg : `${cardBg}88`,
+                    borderColor: textHex,
+                    color: isActive ? accent : textHex,
+                    boxShadow: isActive ? `4px 4px 0px 0px ${accent}` : undefined,
+                }
             };
         }
         if (theme === "pixel") {
             return {
-                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[2px] border-[#FF6B9D] rounded-none ${isActive ? 'bg-[#FFE4EF] shadow-[4px_4px_0px_0px_#FF6B9D] scale-105 z-10' : 'bg-[#FFE4EF]/50 opacity-80 hover:opacity-100'}`,
+                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[2px] rounded-none ${isActive ? 'scale-105 z-10' : 'opacity-80 hover:opacity-100'}`,
                 fontClass: "font-mono font-bold",
-                style: { color: '#5C3D4F' }
+                style: {
+                    backgroundColor: isActive ? cardBg : `${cardBg}88`,
+                    borderColor: accent,
+                    color: textHex,
+                    boxShadow: isActive ? `4px 4px 0px 0px ${accent}` : undefined,
+                }
             };
         }
         if (theme === "post_card") {
@@ -617,16 +633,20 @@ export default function KioskWorkspaceCustomizerPage() {
         }
         if (theme === "global") {
             return {
-                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] border-white rounded-[2rem] ${isActive ? 'bg-[#0052CC] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-105 z-10' : 'bg-[#0052CC]/30 text-white/60 opacity-60 hover:opacity-100'}`,
+                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] border-white rounded-[2rem] ${isActive ? 'scale-105 z-10' : 'opacity-60 hover:opacity-100'}`,
                 fontClass: "font-black italic tracking-widest",
-                style: {}
+                style: {
+                    backgroundColor: isActive ? btnBg : `${btnBg}4d`,
+                    color: btnText,
+                    boxShadow: isActive ? '4px 4px 0px 0px rgba(0,0,0,1)' : undefined,
+                }
             };
         }
         // Default
         return {
-            className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 rounded-2xl ${isActive ? 'bg-white/90 shadow-lg border-2 scale-105 z-10' : 'bg-white/20 border border-dashed opacity-60 hover:opacity-100'}`,
+            className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 rounded-2xl ${isActive ? 'shadow-lg border-2 scale-105 z-10' : 'border border-dashed opacity-60 hover:opacity-100'}`,
             fontClass: "font-black tracking-wider uppercase",
-            style: isActive ? { borderColor: getAccentColor(), color: getAccentColor() } : { borderColor: 'rgba(255,255,255,0.3)' }
+            style: isActive ? { borderColor: accent, color: accent, backgroundColor: 'rgba(255,255,255,0.9)' } : { borderColor: 'rgba(255,255,255,0.3)' }
         };
     };
 
