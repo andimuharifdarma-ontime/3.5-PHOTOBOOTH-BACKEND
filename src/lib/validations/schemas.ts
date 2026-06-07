@@ -109,6 +109,10 @@ export const settingsSchema = z.object({
   kioskBgImageUrl: z.string().nullable().optional(),
   kioskBgImageOpacity: z.number().min(0).max(1).nullable().optional(),
   kioskShowBgDots: z.boolean().optional(),
+  kioskShowBrandName: z.boolean().optional(),
+  kioskShowBrandSubtitle: z.boolean().optional(),
+  kioskBrandSubtitle: z.string().nullable().optional(),
+  kioskShowLogo: z.boolean().optional(),
 });
 
 // ==========================

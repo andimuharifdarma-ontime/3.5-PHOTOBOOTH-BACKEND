@@ -4,13 +4,13 @@ export const KIOSK_THEME_PRESETS = [
     name: "Pop Art Rocket",
     category: "Fun & Bold",
     recommendation: "Festival & Pop-up",
-    accent: "#FFB800",
-    bgStart: "#F0F4FF",
-    bgEnd: "#E0EBFF",
+    accent: "#E11D48",
+    bgStart: "#FFF1F2",
+    bgEnd: "#FECDD3",
     font: "Inter",
-    textColor: "#000000",
-    buttonColor: "#FFB800",
-    buttonTextColor: "#000000"
+    textColor: "#1C1917",
+    buttonColor: "#DC2626",
+    buttonTextColor: "#FFFFFF"
   },
   {
     id: "post_card",
@@ -56,13 +56,13 @@ export const KIOSK_THEME_PRESETS = [
     name: "Retro Pixel",
     category: "Retro",
     recommendation: "Arcade & Fun",
-    accent: "#9C3D32",
-    bgStart: "#E4DDCB",
-    bgEnd: "#E4DDCB",
+    accent: "#FF6B9D",
+    bgStart: "#FFF0F5",
+    bgEnd: "#FFE4EF",
     font: "Courier New, monospace",
-    textColor: "#1F242A",
-    buttonColor: "#E5A937",
-    buttonTextColor: "#1F242A"
+    textColor: "#5C3D4F",
+    buttonColor: "#FF85A8",
+    buttonTextColor: "#FFFFFF"
   }
 ];
 

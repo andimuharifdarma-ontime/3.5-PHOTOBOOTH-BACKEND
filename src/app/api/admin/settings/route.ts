@@ -157,7 +157,11 @@ export async function GET(request: Request) {
                     kioskButtonTextColor: null,
                     kioskBgImageUrl: null,
                     kioskBgImageOpacity: 1.0,
-                    kioskShowBgDots: true
+                    kioskShowBgDots: true,
+                    kioskShowBrandName: true,
+                    kioskShowBrandSubtitle: false,
+                    kioskBrandSubtitle: null,
+                    kioskShowLogo: true,
                 } as any
             }) as any);
         }
@@ -246,7 +250,11 @@ export async function POST(request: Request) {
             kioskButtonTextColor,
             kioskBgImageUrl,
             kioskBgImageOpacity,
-            kioskShowBgDots
+            kioskShowBgDots,
+            kioskShowBrandName,
+            kioskShowBrandSubtitle,
+            kioskBrandSubtitle,
+            kioskShowLogo,
         } = body;
 
         // Validation for captureTimer (Min 5, Max 10)
@@ -294,6 +302,10 @@ export async function POST(request: Request) {
                 kioskBgImageUrl: kioskBgImageUrl !== undefined ? kioskBgImageUrl : null,
                 kioskBgImageOpacity: kioskBgImageOpacity !== undefined ? kioskBgImageOpacity : 1.0,
                 kioskShowBgDots: kioskShowBgDots !== undefined ? kioskShowBgDots : true,
+                kioskShowBrandName: kioskShowBrandName !== undefined ? kioskShowBrandName : true,
+                kioskShowBrandSubtitle: kioskShowBrandSubtitle !== undefined ? kioskShowBrandSubtitle : false,
+                kioskBrandSubtitle: kioskBrandSubtitle !== undefined ? kioskBrandSubtitle : null,
+                kioskShowLogo: kioskShowLogo !== undefined ? kioskShowLogo : true,
             } as any,
             create: {
                 adminUserId: settingsAdminId,
@@ -333,6 +345,10 @@ export async function POST(request: Request) {
                 kioskBgImageUrl: kioskBgImageUrl !== undefined ? kioskBgImageUrl : null,
                 kioskBgImageOpacity: kioskBgImageOpacity !== undefined ? kioskBgImageOpacity : 1.0,
                 kioskShowBgDots: kioskShowBgDots !== undefined ? kioskShowBgDots : true,
+                kioskShowBrandName: kioskShowBrandName !== undefined ? kioskShowBrandName : true,
+                kioskShowBrandSubtitle: kioskShowBrandSubtitle !== undefined ? kioskShowBrandSubtitle : false,
+                kioskBrandSubtitle: kioskBrandSubtitle !== undefined ? kioskBrandSubtitle : null,
+                kioskShowLogo: kioskShowLogo !== undefined ? kioskShowLogo : true,
             } as any
         }) as any;
 

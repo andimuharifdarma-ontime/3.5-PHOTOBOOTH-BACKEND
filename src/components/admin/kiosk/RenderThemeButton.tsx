@@ -23,16 +23,26 @@ export function RenderThemeButton({
   const gap = isSmall ? "gap-1.5" : "gap-3";
 
   switch (themeId) {
-    case "pop_art":
+    case "pop_art": {
+      const popBg = style.backgroundColor || "#DC2626";
+      const popText = style.color || "#FFFFFF";
+      const popBorder = style.borderColor || "#1C1917";
       return (
         <button
-          className={`w-full ${py} rounded-xl flex items-center justify-center ${gap} font-black ${textSz} tracking-wider transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-[3px] border-black bg-[#FFB800] text-black italic hover:translate-y-1 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-2 active:shadow-none`}
-          style={style}
+          className={`w-full ${py} rounded-xl flex items-center justify-center ${gap} font-black ${textSz} tracking-wider transition-all duration-300 border-[3px] italic hover:translate-y-1 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-2 active:shadow-none`}
+          style={{
+            ...style,
+            backgroundColor: popBg,
+            color: popText,
+            borderColor: popBorder,
+            boxShadow: style.boxShadow ?? "4px 4px 0px 0px rgba(0,0,0,1)",
+          }}
         >
           {CustomIcon ? <CustomIcon className={iconSz} /> : <Rocket className={iconSz} />}
           <span>{text || "PLAY NOW"}</span>
         </button>
       );
+    }
     case "post_card":
       return (
         <button
@@ -76,17 +86,27 @@ export function RenderThemeButton({
           </button>
         </div>
       );
-    case "pixel":
+    case "pixel": {
+      const pixelBg = style.backgroundColor || "#FF85A8";
+      const pixelText = style.color || "#FFFFFF";
+      const pixelBorder = style.borderColor || "#FF6B9D";
       return (
         <button
-          className={`w-full ${py} rounded-none flex items-center justify-center ${gap} font-mono font-bold ${textSz} transition-all duration-300 shadow-[3px_3px_0px_0px_#1F242A] border-[2px] border-[#1F242A] bg-[#E5A937] text-[#1F242A] hover:bg-[#D49826] active:translate-y-[3px] active:translate-x-[3px] active:shadow-none relative`}
-          style={style}
+          className={`w-full ${py} rounded-none flex items-center justify-center ${gap} font-mono font-bold ${textSz} transition-all duration-300 border-[2px] hover:brightness-95 active:translate-y-[3px] active:translate-x-[3px] active:shadow-none relative`}
+          style={{
+            ...style,
+            backgroundColor: pixelBg,
+            color: pixelText,
+            borderColor: pixelBorder,
+            boxShadow: style.boxShadow ?? `3px 3px 0px 0px ${pixelBorder}`,
+          }}
         >
           <div className="absolute inset-0 border-t-2 border-l-2 border-white/40 pointer-events-none" />
           {CustomIcon ? <CustomIcon className={iconSz} /> : <Monitor className={iconSz} />}
           <span>{text || "START"}</span>
         </button>
       );
+    }
     default:
       return (
         <button
