@@ -170,6 +170,10 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskBgImageUrl: null as string | null,
         kioskBgImageOpacity: 1.0 as number,
         kioskShowBgDots: true as boolean,
+        kioskShowBrandName: true as boolean,
+        kioskShowBrandSubtitle: false as boolean,
+        kioskBrandSubtitle: null as string | null,
+        kioskShowLogo: true as boolean,
         enabledFilters: ALL_ARTISTIC_FILTERS.map((f) => f.id) as string[],
     });
 
@@ -313,6 +317,10 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskBgImageUrl: data.kioskBgImageUrl || null,
                 kioskBgImageOpacity: data.kioskBgImageOpacity ?? 1.0,
                 kioskShowBgDots: data.kioskShowBgDots ?? true,
+                kioskShowBrandName: data.kioskShowBrandName ?? true,
+                kioskShowBrandSubtitle: data.kioskShowBrandSubtitle ?? false,
+                kioskBrandSubtitle: data.kioskBrandSubtitle || null,
+                kioskShowLogo: data.kioskShowLogo ?? true,
                 enabledFilters: Array.isArray(data.enabledFilters)
                     ? data.enabledFilters
                     : ALL_ARTISTIC_FILTERS.map((f) => f.id),
@@ -443,7 +451,11 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskButtonTextColor: null,
             kioskBgImageUrl: null,
             kioskBgImageOpacity: 1.0,
-            kioskShowBgDots: true
+            kioskShowBgDots: true,
+            kioskShowBrandName: true,
+            kioskShowBrandSubtitle: false,
+            kioskBrandSubtitle: null,
+            kioskShowLogo: true,
         }));
         setIsGradient(true);
     };
@@ -577,16 +589,16 @@ export default function KioskWorkspaceCustomizerPage() {
         const theme = settings.kioskThemePreset;
         if (theme === "pop_art") {
             return {
-                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] border-black rounded-xl ${isActive ? 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-105 z-10' : 'bg-white/50 opacity-60 hover:opacity-100'}`,
+                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[3px] border-[#1C1917] rounded-xl ${isActive ? 'bg-[#FFF1F2] shadow-[4px_4px_0px_0px_#E11D48] scale-105 z-10' : 'bg-[#FFF1F2]/50 opacity-60 hover:opacity-100'}`,
                 fontClass: "font-black",
-                style: { color: isActive ? '#000' : 'inherit' }
+                style: { color: isActive ? '#E11D48' : 'inherit' }
             };
         }
         if (theme === "pixel") {
             return {
-                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[2px] border-[#1F242A] rounded-none ${isActive ? 'bg-[#E4DDCB] shadow-[4px_4px_0px_0px_#1F242A] scale-105 z-10' : 'bg-[#E4DDCB]/50 opacity-80 hover:opacity-100'}`,
+                className: `p-4 flex flex-col items-center gap-3 transition-all duration-300 border-[2px] border-[#FF6B9D] rounded-none ${isActive ? 'bg-[#FFE4EF] shadow-[4px_4px_0px_0px_#FF6B9D] scale-105 z-10' : 'bg-[#FFE4EF]/50 opacity-80 hover:opacity-100'}`,
                 fontClass: "font-mono font-bold",
-                style: { color: '#1F242A' }
+                style: { color: '#5C3D4F' }
             };
         }
         if (theme === "post_card") {
@@ -785,6 +797,15 @@ export default function KioskWorkspaceCustomizerPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                                         {filteredPresets.map((preset, index) => {
                                             const isActive = settings.kioskThemePreset === preset.id;
+                                            // Kartu katalog selalu tampilkan palet default preset (bukan warna tersimpan di DB)
+                                            const displayBgStart = preset.bgStart;
+                                            const displayBgEnd = preset.bgEnd;
+                                            const displayAccent = preset.accent;
+                                            const displayButtonColor = preset.buttonColor || preset.accent;
+                                            const displayButtonTextColor = preset.buttonTextColor || "#FFFFFF";
+                                            const displayTextColor = preset.textColor || "#FFFFFF";
+                                            const displayFont = preset.font || "Geist";
+
                                             return (
                                                 <div
                                                     key={preset.id}
@@ -797,26 +818,34 @@ export default function KioskWorkspaceCustomizerPage() {
                                                     {/* Large Mockup style container */}
                                                     <div 
                                                         className="w-full aspect-[16/10] rounded-[1.5rem] border border-black/5 flex flex-col justify-between p-4 relative overflow-hidden shadow-inner select-none pointer-events-none"
-                                                        style={{ background: `linear-gradient(135deg, ${preset.bgStart}, ${preset.bgEnd})` }}
+                                                        style={{ background: `linear-gradient(135deg, ${displayBgStart}, ${displayBgEnd})` }}
                                                     >
                                                         <div 
                                                             className="absolute inset-0 opacity-[0.06] pointer-events-none [background-size:16px_16px]" 
                                                             style={{ 
-                                                                backgroundImage: `radial-gradient(${preset.textColor === "#FFFFFF" ? '#ffffff' : '#4A3F35'} 1.2px, transparent 1.2px)` 
+                                                                backgroundImage: `radial-gradient(${displayTextColor === "#FFFFFF" ? '#ffffff' : displayAccent} 1.2px, transparent 1.2px)` 
                                                             }} 
                                                         />
                                                         
                                                         {/* Mock title */}
-                                                        <div className="text-[9px] uppercase tracking-widest font-black leading-none" style={{ color: preset.accent, fontFamily: preset.font }}>
+                                                        <div className="text-[9px] uppercase tracking-widest font-black leading-none" style={{ color: displayAccent, fontFamily: displayFont }}>
                                                             {preset.name}
                                                         </div>
                                                         
                                                         {/* Mock Button */}
                                                         <div className="flex justify-center items-center w-full">
-                                                            <RenderThemeButton themeId={preset.id} isSmall={true} />
+                                                            <RenderThemeButton
+                                                                themeId={preset.id}
+                                                                isSmall={true}
+                                                                style={{
+                                                                    backgroundColor: displayButtonColor,
+                                                                    color: displayButtonTextColor,
+                                                                    borderColor: displayAccent,
+                                                                }}
+                                                            />
                                                         </div>
                                                         
-                                                        <div className="w-full flex justify-between items-center text-[7px] opacity-50 font-bold uppercase tracking-wider" style={{ color: preset.textColor }}>
+                                                        <div className="w-full flex justify-between items-center text-[7px] opacity-50 font-bold uppercase tracking-wider" style={{ color: displayTextColor }}>
                                                             <span>Studio Kiosk</span>
                                                             <span>● Online & Ready</span>
                                                         </div>
@@ -1028,7 +1057,8 @@ export default function KioskWorkspaceCustomizerPage() {
                                         (settings.kioskBgGradientStart || "").toLowerCase().startsWith("#e") || 
                                         (settings.kioskBgGradientStart || "").toLowerCase() === "#ffffff" || 
                                         settings.kioskThemePreset === "wedding" || 
-                                        settings.kioskThemePreset === "retro";
+                                        settings.kioskThemePreset === "retro" ||
+                                        settings.kioskThemePreset === "pixel";
                         
                         const textColor = isLight ? "text-[#4A3F35]" : "text-white";
                         const subtextColor = isLight ? "text-[#8C7E6A]" : "text-white/60";
@@ -1122,25 +1152,26 @@ export default function KioskWorkspaceCustomizerPage() {
                                         <div className="h-full flex flex-col justify-between items-center text-center py-12 animate-fadeIn relative z-10">
                                             {/* Status Info (Wifi/Settings mock) */}
                                             <div className="absolute top-0 right-0 flex items-center gap-3 opacity-90">
-                                                {settings.isPaymentEnabled && (
-                                                    <span className="text-[7px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm uppercase tracking-wider">
-                                                        💳 Mode Pembayaran Aktif
-                                                    </span>
-                                                )}
                                                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                                 <span className="text-[7px] font-bold tracking-widest uppercase">Kiosk Online</span>
                                             </div>
 
                                             {/* Brand Header */}
                                             <div className="space-y-2 mt-4">
-                                                <h1 className="text-2xl tracking-widest font-black uppercase" style={{ color: getAccentColor() }}>
-                                                    {settings.kioskBrandName || "DOVELENS PHOTOBOOTH"}
-                                                </h1>
-                                                <p className={`text-[8px] tracking-[0.4em] uppercase font-bold ${subtextColor}`}>PART OF DOVELENS.FT</p>
+                                                {settings.kioskShowBrandName && (
+                                                    <h1 className="text-2xl tracking-widest font-black uppercase" style={{ color: getAccentColor() }}>
+                                                        {settings.kioskBrandName || "DOVELENS PHOTOBOOTH"}
+                                                    </h1>
+                                                )}
+                                                {settings.kioskShowBrandSubtitle && (
+                                                    <p className={`text-[8px] tracking-[0.4em] uppercase font-bold ${subtextColor}`}>
+                                                        {settings.kioskBrandSubtitle || "PART OF DOVELENS.FT"}
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {/* Central Visual Callout */}
-                                            {settings.kioskThemePreset && settings.kioskThemePreset !== "default" ? (
+                                            {settings.kioskShowLogo ? (
                                                 settings.kioskLogoUrl ? (
                                                     <div className="w-28 h-28 rounded-full flex items-center justify-center bg-white/5 border border-white/10 shadow-2xl relative my-auto">
                                                         <div className="absolute inset-2 rounded-full border border-dashed border-white/20 animate-spin" style={{ animationDuration: "16s" }} />
@@ -1153,7 +1184,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                                     </div>
                                                 )
                                             ) : (
-                                                <div className="h-20 my-auto" /> // Completely hide central icon in default settings!
+                                                <div className="h-20 my-auto" />
                                             )}
 
                                             {/* Bottom Welcome & Play Button */}
@@ -1161,16 +1192,12 @@ export default function KioskWorkspaceCustomizerPage() {
                                                 <p className="text-[10px] font-black tracking-widest uppercase opacity-90 animate-pulse">
                                                     {settings.kioskWelcomeMessage || "Sentuh Layar untuk Mulai!"}
                                                 </p>
-                                                {settings.isPaymentEnabled ? (
-                                                    <div className="space-y-2">
-                                                        <span className="text-[8px] font-black px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-500 inline-block border border-emerald-500/30 uppercase tracking-widest">
-                                                            Rp 50.000 / Sesi
-                                                        </span>
-                                                        <RenderThemeButton style={{ backgroundColor: mockButtonBg, color: mockButtonText }} themeId={settings.kioskThemePreset} text="Bayar & Mulai Sesi" />
-                                                    </div>
-                                                ) : (
-                                                    <RenderThemeButton style={{ backgroundColor: mockButtonBg, color: mockButtonText }} themeId={settings.kioskThemePreset} text="Mulai Sesi Memotret" />
+                                                {settings.isPaymentEnabled && (
+                                                    <p className={`text-[7px] tracking-wider uppercase ${subtextColor}`}>
+                                                        Pembayaran dilakukan setelah memilih filter
+                                                    </p>
                                                 )}
+                                                <RenderThemeButton style={{ backgroundColor: mockButtonBg, color: mockButtonText }} themeId={settings.kioskThemePreset} text="Mulai Sesi Memotret" />
                                             </div>
                                         </div>
                                     )}
@@ -1430,7 +1457,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                         {/* Submit Button */}
                                         <div className={`border-t ${borderColor} pt-3 flex justify-end`}>
                                             <div className="w-40">
-                                                <RenderThemeButton style={{ backgroundColor: mockButtonBg, color: mockButtonText }} themeId={settings.kioskThemePreset} text="Lanjutkan Cetak" isSmall={true} icon={Printer} />
+                                                <RenderThemeButton style={{ backgroundColor: mockButtonBg, color: mockButtonText }} themeId={settings.kioskThemePreset} text={settings.isPaymentEnabled ? "Selesai & Lanjut" : "Lanjutkan Cetak"} isSmall={true} icon={Printer} />
                                             </div>
                                         </div>
                                     </div>
@@ -1648,7 +1675,26 @@ export default function KioskWorkspaceCustomizerPage() {
                             Brand & Welcome Message
                         </h3>
                         
+                        {/* Brand name toggle */}
+                        <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aktifkan Nama Brand</span>
+                            <button
+                                type="button"
+                                onClick={() => setSettings(prev => ({ ...prev, kioskShowBrandName: !prev.kioskShowBrandName }))}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                    settings.kioskShowBrandName ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        settings.kioskShowBrandName ? "translate-x-5" : "translate-x-1"
+                                    }`}
+                                />
+                            </button>
+                        </div>
+
                         {/* Brand Header Name Input */}
+                        {settings.kioskShowBrandName && (
                         <div className="space-y-1">
                             <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Nama Brand / Event Kiosk</label>
                             <input
@@ -1659,6 +1705,37 @@ export default function KioskWorkspaceCustomizerPage() {
                                 className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EAE1D3] rounded-xl text-xs font-bold text-[#4A3F35] placeholder:text-[#8C7E6A]/30 focus:outline-none focus:border-[#A68B67]"
                             />
                         </div>
+                        )}
+
+                        {/* Subtitle brand toggle */}
+                        <div className="flex items-center justify-between pt-1">
+                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aktifkan Subtitle Brand</span>
+                            <button
+                                type="button"
+                                onClick={() => setSettings(prev => ({ ...prev, kioskShowBrandSubtitle: !prev.kioskShowBrandSubtitle }))}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                    settings.kioskShowBrandSubtitle ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        settings.kioskShowBrandSubtitle ? "translate-x-5" : "translate-x-1"
+                                    }`}
+                                />
+                            </button>
+                        </div>
+                        {settings.kioskShowBrandSubtitle && (
+                            <div className="space-y-1">
+                                <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Teks Subtitle Brand</label>
+                                <input
+                                    type="text"
+                                    value={settings.kioskBrandSubtitle || ""}
+                                    onChange={e => setSettings(prev => ({ ...prev, kioskBrandSubtitle: e.target.value || null }))}
+                                    placeholder="PART OF DOVELENS.FT"
+                                    className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EAE1D3] rounded-xl text-xs font-bold text-[#4A3F35] placeholder:text-[#8C7E6A]/30 focus:outline-none focus:border-[#A68B67]"
+                                />
+                            </div>
+                        )}
 
                         {/* Kiosk Custom Logo Upload Input */}
                         <div className="space-y-1.5">
@@ -1707,8 +1784,24 @@ export default function KioskWorkspaceCustomizerPage() {
                                 </div>
                             )}
                             <p className="text-[8px] text-[#8C7E6A]/75 italic mt-0.5 leading-tight">
-                                Logo akan tampil jika menggunakan tema kustom. Jika kosong, akan menampilkan icon default.
+                                Jika kosong, akan menampilkan icon default di launcher.
                             </p>
+                            <div className="flex items-center justify-between pt-2.5 border-t border-[#EAE1D3]/30 mt-2">
+                                <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Tampilkan Logo di Launcher</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSettings(prev => ({ ...prev, kioskShowLogo: !prev.kioskShowLogo }))}
+                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                        settings.kioskShowLogo ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                    }`}
+                                >
+                                    <span
+                                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                            settings.kioskShowLogo ? "translate-x-5" : "translate-x-1"
+                                        }`}
+                                    />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Kiosk Custom Background Upload Input */}
@@ -1837,7 +1930,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                     <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
                                         <input
                                             type="color"
-                                            value={settings.kioskAccentColor || "#A68B67"}
+                                            value={settings.kioskAccentColor || getAccentColor()}
                                             onChange={e => handleColorChange("kioskAccentColor", e.target.value)}
                                             className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
                                         />
@@ -1976,7 +2069,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                     <div className="relative w-8 h-8 rounded-lg cursor-pointer border border-[#EAE1D3] overflow-hidden shrink-0">
                                         <input
                                             type="color"
-                                            value={settings.kioskButtonColor || "#A68B67"}
+                                            value={settings.kioskButtonColor || PRESETS.find(p => p.id === settings.kioskThemePreset)?.buttonColor || getAccentColor()}
                                             onChange={e => handleColorChange("kioskButtonColor", e.target.value)}
                                             className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer border-0"
                                         />
@@ -2077,7 +2170,7 @@ export default function KioskWorkspaceCustomizerPage() {
                         <span className="text-[8px] text-[#A68B67] font-black uppercase tracking-widest block">Ringkasan Palet</span>
                         <div className="grid grid-cols-2 gap-2 text-[8px] font-black uppercase text-[#4A3F35] tracking-wider">
                             <div className="flex items-center gap-1.5">
-                                <span className="w-3.5 h-3.5 rounded border border-black/5" style={{ backgroundColor: settings.kioskAccentColor || '#A68B67' }} />
+                                <span className="w-3.5 h-3.5 rounded border border-black/5" style={{ backgroundColor: getAccentColor() }} />
                                 <span>Accent</span>
                             </div>
                             <div className="flex items-center gap-1.5">

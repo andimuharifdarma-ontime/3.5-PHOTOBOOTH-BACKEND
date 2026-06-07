@@ -51,6 +51,10 @@ model SystemSetting {
   kioskBgImageUrl              String?
   kioskBgImageOpacity          Float?     @default(1.0)
   kioskShowBgDots              Boolean    @default(true)
+  kioskShowBrandName           Boolean    @default(true)
+  kioskShowBrandSubtitle       Boolean    @default(false)
+  kioskBrandSubtitle           String?
+  kioskShowLogo                Boolean    @default(true)
 }
 
 model FrameTheme {
