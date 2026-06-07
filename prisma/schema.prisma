@@ -55,6 +55,8 @@ model SystemSetting {
   kioskShowBrandSubtitle       Boolean    @default(false)
   kioskBrandSubtitle           String?
   kioskShowLogo                Boolean    @default(true)
+  kioskShowWelcomeMessage      Boolean    @default(true)
+  kioskShowPaymentHint         Boolean    @default(true)
 }
 
 model FrameTheme {

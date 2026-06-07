@@ -86,7 +86,7 @@ export const settingsSchema = z.object({
   photoFilterTimer: z.number().int().min(1).max(120).optional(),
   captureTimer: z.number().int().min(5).max(10).optional(),
   maxCapturePhotos: z.number().int().min(1).max(20).optional(),
-  resultTimer: z.number().int().min(10).max(300).optional(),
+  resultTimer: z.number().int().min(1).max(120).optional(),
   isFrameSelectionTimerEnabled: z.boolean().optional(),
   isPhotoSessionTimerEnabled: z.boolean().optional(),
   isPhotoSelectionTimerEnabled: z.boolean().optional(),
@@ -113,6 +113,8 @@ export const settingsSchema = z.object({
   kioskShowBrandSubtitle: z.boolean().optional(),
   kioskBrandSubtitle: z.string().nullable().optional(),
   kioskShowLogo: z.boolean().optional(),
+  kioskShowWelcomeMessage: z.boolean().optional(),
+  kioskShowPaymentHint: z.boolean().optional(),
 });
 
 // ==========================

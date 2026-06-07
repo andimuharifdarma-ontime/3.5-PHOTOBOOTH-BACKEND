@@ -174,6 +174,8 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskShowBrandSubtitle: false as boolean,
         kioskBrandSubtitle: null as string | null,
         kioskShowLogo: true as boolean,
+        kioskShowWelcomeMessage: true as boolean,
+        kioskShowPaymentHint: true as boolean,
         enabledFilters: ALL_ARTISTIC_FILTERS.map((f) => f.id) as string[],
     });
 
@@ -321,6 +323,8 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskShowBrandSubtitle: data.kioskShowBrandSubtitle ?? false,
                 kioskBrandSubtitle: data.kioskBrandSubtitle || null,
                 kioskShowLogo: data.kioskShowLogo ?? true,
+                kioskShowWelcomeMessage: data.kioskShowWelcomeMessage ?? true,
+                kioskShowPaymentHint: data.kioskShowPaymentHint ?? true,
                 enabledFilters: Array.isArray(data.enabledFilters)
                     ? data.enabledFilters
                     : ALL_ARTISTIC_FILTERS.map((f) => f.id),
@@ -456,6 +460,8 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskShowBrandSubtitle: false,
             kioskBrandSubtitle: null,
             kioskShowLogo: true,
+            kioskShowWelcomeMessage: true,
+            kioskShowPaymentHint: true,
         }));
         setIsGradient(true);
     };
@@ -1209,10 +1215,12 @@ export default function KioskWorkspaceCustomizerPage() {
 
                                             {/* Bottom Welcome & Play Button */}
                                             <div className="space-y-6 w-full max-w-sm">
-                                                <p className="text-[10px] font-black tracking-widest uppercase opacity-90 animate-pulse">
-                                                    {settings.kioskWelcomeMessage || "Sentuh Layar untuk Mulai!"}
-                                                </p>
-                                                {settings.isPaymentEnabled && (
+                                                {settings.kioskShowWelcomeMessage && (
+                                                    <p className="text-[10px] font-black tracking-widest uppercase opacity-90 animate-pulse">
+                                                        {settings.kioskWelcomeMessage || "Sentuh Layar untuk Mulai!"}
+                                                    </p>
+                                                )}
+                                                {settings.isPaymentEnabled && settings.kioskShowPaymentHint && (
                                                     <p className={`text-[7px] tracking-wider uppercase ${subtextColor}`}>
                                                         Pembayaran dilakukan setelah memilih filter
                                                     </p>
@@ -1902,17 +1910,58 @@ export default function KioskWorkspaceCustomizerPage() {
                             </div>
                         </div>
 
-                        {/* Welcome Message Input */}
-                        <div className="space-y-1">
-                            <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Pesan Sambutan Launcher</label>
-                            <input
-                                type="text"
-                                value={settings.kioskWelcomeMessage || ""}
-                                onChange={e => setSettings(prev => ({ ...prev, kioskWelcomeMessage: e.target.value || null }))}
-                                placeholder="Contoh: Sentuh Layar untuk Mulai!"
-                                className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EAE1D3] rounded-xl text-xs font-bold text-[#4A3F35] placeholder:text-[#8C7E6A]/30 focus:outline-none focus:border-[#A68B67]"
-                            />
+                        {/* Welcome message toggle */}
+                        <div className="flex items-center justify-between pt-1">
+                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aktifkan Pesan Sambutan</span>
+                            <button
+                                type="button"
+                                onClick={() => setSettings(prev => ({ ...prev, kioskShowWelcomeMessage: !prev.kioskShowWelcomeMessage }))}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                    settings.kioskShowWelcomeMessage ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        settings.kioskShowWelcomeMessage ? "translate-x-5" : "translate-x-1"
+                                    }`}
+                                />
+                            </button>
                         </div>
+
+                        {/* Welcome Message Input */}
+                        {settings.kioskShowWelcomeMessage && (
+                            <div className="space-y-1">
+                                <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Pesan Sambutan Launcher</label>
+                                <input
+                                    type="text"
+                                    value={settings.kioskWelcomeMessage || ""}
+                                    onChange={e => setSettings(prev => ({ ...prev, kioskWelcomeMessage: e.target.value || null }))}
+                                    placeholder="Contoh: Sentuh Layar untuk Mulai!"
+                                    className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EAE1D3] rounded-xl text-xs font-bold text-[#4A3F35] placeholder:text-[#8C7E6A]/30 focus:outline-none focus:border-[#A68B67]"
+                                />
+                            </div>
+                        )}
+
+                        {/* Payment hint toggle */}
+                        <div className="flex items-center justify-between pt-1">
+                            <span className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider">Aktifkan Info Pembayaran</span>
+                            <button
+                                type="button"
+                                onClick={() => setSettings(prev => ({ ...prev, kioskShowPaymentHint: !prev.kioskShowPaymentHint }))}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                    settings.kioskShowPaymentHint ? "bg-[#A68B67]" : "bg-[#EAE1D3]"
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        settings.kioskShowPaymentHint ? "translate-x-5" : "translate-x-1"
+                                    }`}
+                                />
+                            </button>
+                        </div>
+                        <p className="text-[8px] text-[#8C7E6A]/75 italic leading-tight">
+                            Teks &quot;Pembayaran dilakukan setelah memilih filter&quot; hanya tampil jika pembayaran aktif.
+                        </p>
 
                         {/* Premium Fonts Selector */}
                         <div className="space-y-1">
@@ -2152,7 +2201,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                         onChange={e => setSettings(prev => ({ ...prev, captureTimer: parseInt(e.target.value) || 5 }))}
                                         className="w-16 px-2 py-1 bg-white border border-[#EAE1D3] rounded-lg text-center text-xs font-bold text-[#4A3F35]"
                                     />
-                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Detik)</span>
+                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Menit)</span>
                                 </div>
 
                                 {/* Timer 3 */}
@@ -2165,7 +2214,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                         onChange={e => setSettings(prev => ({ ...prev, photoSelectionTimer: parseInt(e.target.value) || 60 }))}
                                         className="w-16 px-2 py-1 bg-white border border-[#EAE1D3] rounded-lg text-center text-xs font-bold text-[#4A3F35]"
                                     />
-                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Detik)</span>
+                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Menit)</span>
                                 </div>
 
                                 {/* Timer 4 */}
@@ -2178,7 +2227,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                         onChange={e => setSettings(prev => ({ ...prev, resultTimer: parseInt(e.target.value) || 60 }))}
                                         className="w-16 px-2 py-1 bg-white border border-[#EAE1D3] rounded-lg text-center text-xs font-bold text-[#4A3F35]"
                                     />
-                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Detik)</span>
+                                    <span className="text-[7.5px] text-[#8C7E6A] uppercase font-bold block">(Menit)</span>
                                 </div>
 
                             </div>
