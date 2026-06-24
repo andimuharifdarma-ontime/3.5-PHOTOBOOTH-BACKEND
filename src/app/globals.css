@@ -197,3 +197,11 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/** Clean transparency preview grid (aligns to 16px cells, no diagonal moiré). */
+.transparency-checker {
+  background-color: #fdfbf7;
+  background-image: repeating-conic-gradient(#eae1d3 0% 25%, #fdfbf7 0% 50%);
+  background-size: 16px 16px;
+  background-position: 0 0;
+}

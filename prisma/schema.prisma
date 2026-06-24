@@ -80,8 +80,9 @@ model Frame {
   id            String     @id @default(uuid())
   themeId       String
   name          String
-  imageUrl      String
-  previewUrl    String
+  imageUrl          String
+  originalImageUrl  String?
+  previewUrl        String
   price         Int        @default(5000)
   outputWidth   Int        @default(1080)
   outputHeight  Int        @default(1920)

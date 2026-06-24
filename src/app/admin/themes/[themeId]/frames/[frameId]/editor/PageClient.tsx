@@ -6,6 +6,8 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Rnd } from 'react-rnd';
 import { ArrowLeft, Plus, Trash2, Save, Eye, EyeOff, Move, Layers, RotateCw, Square } from 'lucide-react';
+import BackgroundRemoverPanel from '@/components/admin/frames/BackgroundRemoverPanel';
+import { loadImage, sampleImageColorAtPoint, type RgbColor } from '@/lib/chromaKey';
 
 interface Slot {
     id: string;
@@ -21,6 +23,7 @@ interface Frame {
     id: string;
     name: string;
     imageUrl: string;
+    originalImageUrl?: string | null;
     previewUrl: string;
     outputWidth: number;
     outputHeight: number;
@@ -37,6 +40,13 @@ const SAMPLE_PHOTOS = [
     'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=400&fit=crop',
 ];
 
+const CHECKER_CELL_PX = 16;
+
+function snapCanvasDimension(value: number): number {
+    const snapped = Math.floor(value / CHECKER_CELL_PX) * CHECKER_CELL_PX;
+    return Math.max(CHECKER_CELL_PX * 2, snapped);
+}
+
 export default function SlotEditorPage() {
     const params = useParams();
     const router = useRouter();
@@ -47,8 +57,15 @@ export default function SlotEditorPage() {
     const themeId = params.themeId as string;
     const frameId = params.frameId as string;
     const containerRef = useRef<HTMLDivElement>(null);
+    const canvasAreaRef = useRef<HTMLDivElement>(null);
+    const eyedropperImageRef = useRef<HTMLImageElement | null>(null);
 
     const [frame, setFrame] = useState<Frame | null>(null);
+    const [activeImageUrl, setActiveImageUrl] = useState('');
+    const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+    const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+    const [eyedropperActive, setEyedropperActive] = useState(false);
+    const [pickedColor, setPickedColor] = useState<RgbColor | null>(null);
     const [slots, setSlots] = useState<Slot[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -84,7 +101,10 @@ export default function SlotEditorPage() {
                     width = height * aspectRatio;
                 }
 
-                setContainerSize({ width, height });
+                setContainerSize({
+                    width: snapCanvasDimension(width),
+                    height: snapCanvasDimension(height),
+                });
             }
         };
 
@@ -93,12 +113,73 @@ export default function SlotEditorPage() {
         return () => window.removeEventListener('resize', updateSize);
     }, [frame]);
 
+    useEffect(() => {
+        const sourceUrl = originalImageUrl || activeImageUrl;
+        if (!sourceUrl) return;
+
+        let cancelled = false;
+        loadImage(sourceUrl)
+            .then((image) => {
+                if (!cancelled) eyedropperImageRef.current = image;
+            })
+            .catch(() => {
+                if (!cancelled) eyedropperImageRef.current = null;
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [originalImageUrl, activeImageUrl]);
+
+    const handleCanvasEyedropperClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (!eyedropperActive || !canvasAreaRef.current || !eyedropperImageRef.current) return;
+
+        const rect = canvasAreaRef.current.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        const color = sampleImageColorAtPoint(
+            eyedropperImageRef.current,
+            rect.width,
+            rect.height,
+            clickX,
+            clickY,
+        );
+
+        if (color) {
+            setPickedColor(color);
+        }
+    };
+
+    const handleFrameImageUpdated = ({
+        imageUrl,
+        originalImageUrl: nextOriginal,
+    }: {
+        imageUrl: string;
+        originalImageUrl: string;
+    }) => {
+        setActiveImageUrl(imageUrl);
+        setOriginalImageUrl(nextOriginal);
+        setPreviewImageUrl(null);
+        setFrame((prev) =>
+            prev
+                ? {
+                      ...prev,
+                      imageUrl,
+                      originalImageUrl: nextOriginal,
+                  }
+                : prev,
+        );
+    };
+
     const fetchFrame = async () => {
         try {
             const res = await fetch(`/api/admin/frames/${frameId}`);
             if (res.ok) {
                 const data = await res.json();
                 setFrame(data);
+                setActiveImageUrl(data.imageUrl);
+                setOriginalImageUrl(data.originalImageUrl || null);
+                setPreviewImageUrl(null);
                 setFramePosition(data.framePosition || 'overlay');
                 // Ensure slots have IDs
                 const slotsWithIds = (data.slots || []).map((slot: any, index: number) => ({
@@ -276,9 +357,11 @@ export default function SlotEditorPage() {
     );
 
     // Render frame image
+    const displayImageUrl = previewImageUrl || activeImageUrl || frame.imageUrl;
+
     const renderFrame = () => (
         <img
-            src={frame.imageUrl}
+            src={displayImageUrl}
             alt={frame.name}
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             draggable={false}
@@ -353,12 +436,27 @@ export default function SlotEditorPage() {
                         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#FDFBF7 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
 
                         <div
-                            className="relative bg-white shadow-[0_30px_60px_rgba(0,0,0,0.5)] overflow-hidden"
+                            ref={canvasAreaRef}
+                            className={`relative shadow-[0_30px_60px_rgba(0,0,0,0.5)] overflow-hidden ${
+                                previewImageUrl ? '' : 'bg-white'
+                            } ${eyedropperActive ? 'cursor-crosshair ring-2 ring-[#A68B67]/60' : ''}`}
                             style={{
                                 width: containerSize.width || 'auto',
                                 height: containerSize.height || 'auto',
                             }}
                         >
+                            {previewImageUrl && (
+                                <div
+                                    aria-hidden
+                                    className="transparency-checker absolute inset-0 pointer-events-none"
+                                />
+                            )}
+                            {eyedropperActive && (
+                                <div
+                                    className="absolute inset-0 z-50 cursor-crosshair bg-[#A68B67]/5"
+                                    onClick={handleCanvasEyedropperClick}
+                                />
+                            )}
                             {/* Render based on framePosition */}
                             {framePosition === 'background' ? (
                                 <>
@@ -435,6 +533,18 @@ export default function SlotEditorPage() {
                 </div>
 
                 <div className="lg:col-span-4 space-y-10">
+                    <BackgroundRemoverPanel
+                        frameId={frameId}
+                        sourceImageUrl={activeImageUrl || frame.imageUrl}
+                        originalImageUrl={originalImageUrl}
+                        eyedropperActive={eyedropperActive}
+                        onEyedropperActiveChange={setEyedropperActive}
+                        pickedColor={pickedColor}
+                        onPickedColorConsumed={() => setPickedColor(null)}
+                        onPreviewUrlChange={setPreviewImageUrl}
+                        onFrameImageUpdated={handleFrameImageUpdated}
+                    />
+
                     {/* Frame Position Toggle */}
                     <div className="bg-white p-8 rounded-3xl border border-[#EAE1D3] shadow-md space-y-6">
                         <div className="flex items-center gap-3 text-[#A68B67]">

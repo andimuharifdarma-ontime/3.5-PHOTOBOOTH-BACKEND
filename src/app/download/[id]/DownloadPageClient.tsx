@@ -7,6 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import GIF from 'gif.js';
 import { usePhotoStore } from '@/store/usePhotoStore';
 import { applySlotTransformAndClip } from '@/lib/canvasUtils';
+import { encodeCanvasToMobileMp4, ensureMobileMp4, getVideoEncodeDimensions, isMobileCompatibleMp4, VIDEO_BUDGET_MAX_BYTES } from '@/lib/mobileMp4';
 
 const isVideoContent = (url: string) => {
   if (!url) return false;
@@ -622,8 +623,9 @@ const DownloadPageClient = () => {
         throw new Error('Data frame belum siap');
       }
 
-      const W = layoutConfig.outputWidth;
-      const H = layoutConfig.outputHeight;
+      const fullW = layoutConfig.outputWidth;
+      const fullH = layoutConfig.outputHeight;
+      const { width: W, height: H } = getVideoEncodeDimensions(fullW, fullH, 720);
       const canvas = bonusCanvasRef.current || document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -651,7 +653,7 @@ const DownloadPageClient = () => {
       const workerUrl = `${window.location.origin}/api/gif-worker`;
       const gif = new GIF({
         workers: 2,
-        quality: 10,
+        quality: 18,
         width: W,
         height: H,
         workerScript: workerUrl
@@ -780,36 +782,25 @@ const DownloadPageClient = () => {
         const greenBoxes = slotBoxes ? null : await detectGreenBoxes(detectionSource, W, H);
         const boxes = slotBoxes ?? greenBoxes;
 
-        const stream = canvas.captureStream(30);
-        const types = [
-          'video/mp4;codecs=h264',
-          'video/mp4;codecs=avc1',
-          'video/mp4',
-          'video/webm;codecs=h264',
-          'video/webm;codecs=vp8',
-          'video/webm'
-        ];
-        const selectedType = types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
-        let mimeType = selectedType;
-
-        const targetBytes = 2_000_000;
-        const bitrate = 3000000; // 3 Mbps for crisp output under limit
         const frameDelay = 800;
         const framesPerLoop = 4;
         const loopDuration = framesPerLoop * (frameDelay / 1000);
-        const estimatedDuration = (targetBytes * 8) / bitrate;
-        const initialLoops = Math.max(3, Math.ceil(estimatedDuration / loopDuration));
+        const fps = 24;
+        const maxDurationSec = 10;
+        const totalFrames = Math.min(
+          Math.max(3, Math.ceil(maxDurationSec / loopDuration)) * framesPerLoop,
+          Math.ceil(maxDurationSec * fps),
+        );
 
-        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-        const videoBlobPromise = new Promise<Blob>((resolve) => {
-          recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/mp4' }));
-        });
+        return encodeCanvasToMobileMp4({
+          width: W,
+          height: H,
+          fps,
+          totalFrames,
+          maxBytes: VIDEO_BUDGET_MAX_BYTES,
+          renderFrame: async (ctx, frameIndex) => {
+            const i = frameIndex % framesPerLoop;
 
-        recorder.start();
-        for (let loop = 0; loop < initialLoops; loop++) {
-          for (let i = 0; i < framesPerLoop; i++) {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, W, H);
 
@@ -836,12 +827,8 @@ const DownloadPageClient = () => {
             }
 
             if (overlayFrame) ctx.drawImage(overlayFrame, 0, 0, W, H);
-
-            await new Promise(resolve => setTimeout(resolve, frameDelay));
-          }
-        }
-        recorder.stop();
-        return await videoBlobPromise;
+          },
+        }).then((blob) => ensureMobileMp4(blob, 'frame-bonus.webm'));
       } catch (error) {
         console.error('MP4 generation failed:', error);
       }
@@ -917,73 +904,34 @@ const DownloadPageClient = () => {
         });
       }
 
-      // Setup MediaRecorder with best available type
-      const types = [
-        'video/mp4;codecs=h264',
-        'video/mp4;codecs=avc1',
-        'video/mp4',
-        'video/webm;codecs=h264',
-        'video/webm;codecs=vp8',
-        'video/webm'
-      ];
-      const selectedType = types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+      await Promise.all(videoElements.map((v) => v.play().catch(() => undefined)));
 
-      const stream = canvas.captureStream(30); // 30 FPS
-      const recorder = new MediaRecorder(stream, {
-        mimeType: selectedType,
-        videoBitsPerSecond: 3000000 // 3 Mbps - Sharp quality but < 3MB for 7s output
-      });
+      const durationMs = 7000;
+      const fps = 24;
+      const totalFrames = Math.floor((durationMs / 1000) * fps);
 
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+      const drawLiveFrame = (drawCtx: CanvasRenderingContext2D) => {
+        drawCtx.fillStyle = '#ffffff';
+        drawCtx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const videoPromise = new Promise<Blob>((resolve) => {
-        recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: selectedType });
-          resolve(blob);
-        };
-      });
-
-      recorder.start();
-
-      // Play all videos and record (max 7 seconds)
-      await Promise.all(videoElements.map(v => v.play()));
-
-      const duration = 7000; // 7 seconds
-      const fps = 30;
-      const frameDelay = 1000 / fps;
-      const totalFrames = Math.floor(duration / frameDelay);
-
-      for (let frame = 0; frame < totalFrames; frame++) {
-        // Clear canvas
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw background if exists
         if (backgroundImg) {
-          ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+          drawCtx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
         }
 
-        // Draw videos in slots
         if (layoutConfig.slots.length >= photosWithLivePhoto.length) {
-          // Use database slots
           for (let i = 0; i < photosWithLivePhoto.length; i++) {
             const slot = layoutConfig.slots[i];
             const video = videoElements[i];
             if (slot && video) {
-              ctx.save();
-              // Mirror logic per user request
-              ctx.translate(slot.x + slot.width / 2, slot.y + slot.height / 2);
-              ctx.scale(-1, 1);
-              ctx.translate(-(slot.x + slot.width / 2), -(slot.y + slot.height / 2));
-              ctx.drawImage(video, slot.x, slot.y, slot.width, slot.height);
-              ctx.restore();
+              drawCtx.save();
+              drawCtx.translate(slot.x + slot.width / 2, slot.y + slot.height / 2);
+              drawCtx.scale(-1, 1);
+              drawCtx.translate(-(slot.x + slot.width / 2), -(slot.y + slot.height / 2));
+              drawCtx.drawImage(video, slot.x, slot.y, slot.width, slot.height);
+              drawCtx.restore();
             }
           }
         } else {
-          // Default 2x2 grid
           const gridSize = 2;
           const cellWidth = canvas.width / gridSize;
           const cellHeight = canvas.height / gridSize;
@@ -997,32 +945,41 @@ const DownloadPageClient = () => {
             const y = row * cellHeight + padding;
             const w = cellWidth - padding * 2;
             const h = cellHeight - padding * 2;
-            ctx.save();
-            // Mirror logic per user request
-            ctx.translate(x + w / 2, y + h / 2);
-            ctx.scale(-1, 1);
-            ctx.translate(-(x + w / 2), -(y + h / 2));
-            ctx.drawImage(video, x, y, w, h);
-            ctx.restore();
+            drawCtx.save();
+            drawCtx.translate(x + w / 2, y + h / 2);
+            drawCtx.scale(-1, 1);
+            drawCtx.translate(-(x + w / 2), -(y + h / 2));
+            drawCtx.drawImage(video, x, y, w, h);
+            drawCtx.restore();
           }
         }
 
-        // Draw overlay if exists
         if (overlayImg) {
-          ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+          drawCtx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
         }
+      };
 
-        await new Promise(resolve => setTimeout(resolve, frameDelay));
-      }
+      const videoBlob = await encodeCanvasToMobileMp4({
+        width: canvas.width,
+        height: canvas.height,
+        fps,
+        totalFrames,
+        maxBytes: VIDEO_BUDGET_MAX_BYTES,
+        renderFrame: async (drawCtx, frameIndex, timeSec) => {
+          for (const video of videoElements) {
+            const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : durationMs / 1000;
+            video.currentTime = Math.min(timeSec, duration - 0.001);
+          }
+          drawLiveFrame(drawCtx);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        },
+      });
 
-      recorder.stop();
-      const videoBlob = await videoPromise;
-
-      // Create URL
-      const url = URL.createObjectURL(videoBlob);
+      const mobileBlob = await ensureMobileMp4(videoBlob, 'live-photo.webm');
+      const url = URL.createObjectURL(mobileBlob);
       setLivePhotoUrl(url);
 
-      console.log('✅ Live Photo video generated:', videoBlob.size, 'bytes');
+      console.log('✅ Live Photo video generated:', mobileBlob.size, 'bytes');
     } catch (error) {
       console.error('❌ Live Photo generation failed:', error);
       setLivePhotoError(error instanceof Error ? error.message : 'Failed to generate Live Photo');
@@ -1059,14 +1016,20 @@ const DownloadPageClient = () => {
       const blob = await response.blob();
       let videoBlob = blob;
 
-      // Konversi jika masih GIF
       if (contentType.includes('gif') || blob.type.includes('gif') || gifUrl.includes('.gif')) {
-        try {
-          videoBlob = await convertGifToMp4(blob);
-        } catch {
-          videoBlob = blob;
+        videoBlob = await convertGifToMp4(blob);
+      } else if (!(await isMobileCompatibleMp4(blob))) {
+        if (photos.length >= 4) {
+          try {
+            videoBlob = await convertGifToMp4(blob);
+          } catch {
+            videoBlob = blob;
+          }
         }
       }
+
+      videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
+      videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
 
       const url = URL.createObjectURL(videoBlob);
       const link = document.createElement('a');
@@ -1100,14 +1063,15 @@ const DownloadPageClient = () => {
       if (!response.ok) throw new Error('Failed to fetch video');
 
       const blob = await response.blob();
-      const actualExt = blob.type.includes('webm') ? 'webm' : 'mp4';
-      const actualFileName = fileName.replace('.mp4', `.${actualExt}`);
-      const blobUrl = URL.createObjectURL(blob);
+      let videoBlob = livePhotoUrl.startsWith('blob:')
+        ? blob
+        : await ensureMobileMp4(blob, 'live-photo.webm');
+      videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      const blobUrl = URL.createObjectURL(videoBlob);
 
-      // Download menggunakan blob URL
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = actualFileName;
+      link.download = fileName;
       // Jangan pakai target="_blank"
       document.body.appendChild(link);
       link.click();
