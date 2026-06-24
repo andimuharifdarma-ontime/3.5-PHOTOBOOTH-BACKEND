@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import {
+    buildDownloadShareUrl,
+    extractSessionIdFromImageUrl,
+} from '@/lib/share-url';
 
 export async function GET(request: Request) {
     try {
@@ -36,20 +40,8 @@ export async function GET(request: Request) {
             }
         });
 
-        // Parse orders to include session ID and assets
         const galleryItems = orders.map(order => {
-            let sessionId = '';
-            // Try to extract from download URL first
-            const match = order.imageUrl.match(/\/download\/([^\/]+)$/);
-            if (match) {
-                sessionId = match[1];
-            } else if (order.imageUrl.includes('stableMediaId=')) { // Fallback if query param used
-                const urlObj = new URL(order.imageUrl);
-                sessionId = urlObj.searchParams.get('stableMediaId') || '';
-            } else {
-                // If the imageUrl is just an ID (fallback)
-                sessionId = order.imageUrl.split('/').pop() || order.id;
-            }
+            const sessionId = extractSessionIdFromImageUrl(order.imageUrl, order.id);
 
             return {
                 id: order.id,
@@ -57,9 +49,9 @@ export async function GET(request: Request) {
                 userName: order.userName,
                 frameName: order.frameName,
                 createdAt: order.createdAt,
-                shareUrl: order.imageUrl,
+                shareUrl: buildDownloadShareUrl(sessionId),
             };
-        }).filter(item => item.sessionId); // Only include items with a valid session ID
+        }).filter(item => item.sessionId);
 
         return NextResponse.json({ success: true, items: galleryItems });
 
