@@ -132,12 +132,12 @@ async function encodeOnce(options: {
   const encodeCtx = encodeCanvas.getContext('2d', { alpha: false });
   if (!encodeCtx) throw new Error('Canvas 2D tidak tersedia');
 
-  const drawFrame = async (frameIndex: number, timeSec: number) => {
+  const drawFrame: CanvasFrameRenderer = async (ctx, frameIndex, timeSec) => {
     await renderFrame(sourceCtx, frameIndex, timeSec);
     if (needsScale) {
-      encodeCtx.drawImage(sourceCanvas, 0, 0, encodeWidth, encodeHeight);
+      ctx.drawImage(sourceCanvas, 0, 0, encodeWidth, encodeHeight);
     } else {
-      encodeCtx.drawImage(sourceCanvas, 0, 0);
+      ctx.drawImage(sourceCanvas, 0, 0);
     }
   };
 
@@ -173,7 +173,7 @@ async function encodeOnce(options: {
 
   for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
     const timeSec = frameIndex / fps;
-    await drawFrame(frameIndex, timeSec);
+    await drawFrame(encodeCtx, frameIndex, timeSec);
     const timestamp = frameIndex * frameDurationUs;
     const frame = new VideoFrame(encodeCanvas, { timestamp, duration: frameDurationUs });
     encoder.encode(frame, { keyFrame: frameIndex % fps === 0 });
