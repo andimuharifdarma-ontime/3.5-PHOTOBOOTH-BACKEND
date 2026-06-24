@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -17,7 +18,7 @@ function isMissingOriginalImageUrlColumn(error: unknown): boolean {
 function buildFrameUpdateData(
     body: Record<string, unknown>,
     includeOriginalImageUrl: boolean,
-) {
+): Prisma.FrameUpdateInput {
     const {
         name,
         imageUrl,
@@ -33,20 +34,25 @@ function buildFrameUpdateData(
         order,
     } = body;
 
-    return {
-        ...(name !== undefined && { name }),
-        ...(imageUrl !== undefined && { imageUrl }),
-        ...(includeOriginalImageUrl && originalImageUrl !== undefined && { originalImageUrl }),
-        ...(previewUrl !== undefined && { previewUrl }),
-        ...(price !== undefined && { price }),
-        ...(outputWidth !== undefined && { outputWidth }),
-        ...(outputHeight !== undefined && { outputHeight }),
-        ...(slots !== undefined && { slots }),
-        ...(maxSlots !== undefined && { maxSlots }),
-        ...(framePosition !== undefined && { framePosition }),
-        ...(isActive !== undefined && { isActive }),
-        ...(order !== undefined && { order }),
-    };
+    const data: Prisma.FrameUpdateInput = {};
+
+    if (name !== undefined) data.name = String(name);
+    if (imageUrl !== undefined) data.imageUrl = imageUrl as string;
+    if (includeOriginalImageUrl && originalImageUrl !== undefined) {
+        data.originalImageUrl =
+            originalImageUrl === null ? null : String(originalImageUrl);
+    }
+    if (previewUrl !== undefined) data.previewUrl = previewUrl as string;
+    if (price !== undefined) data.price = Number(price);
+    if (outputWidth !== undefined) data.outputWidth = Number(outputWidth);
+    if (outputHeight !== undefined) data.outputHeight = Number(outputHeight);
+    if (slots !== undefined) data.slots = slots as Prisma.InputJsonValue;
+    if (maxSlots !== undefined) data.maxSlots = Number(maxSlots);
+    if (framePosition !== undefined) data.framePosition = String(framePosition);
+    if (isActive !== undefined) data.isActive = Boolean(isActive);
+    if (order !== undefined) data.order = Number(order);
+
+    return data;
 }
 
 // GET single frame
