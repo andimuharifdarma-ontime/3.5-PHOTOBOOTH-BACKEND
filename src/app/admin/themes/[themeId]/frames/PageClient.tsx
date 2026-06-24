@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Edit, Trash2, Move, Image as ImageIcon, Upload, X, Cre
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import { FRAME_FORMAT_PRESETS } from '@/lib/frameFormats';
 
 
 interface Slot {
@@ -518,15 +519,15 @@ export default function ThemeFramesPage() {
                                             className="w-full bg-[#F5F1EA] px-6 py-4 border border-[#EAE1D3] rounded-xl focus:outline-none focus:border-[#A68B67] text-[#4A3F35] font-bold appearance-none cursor-pointer pr-12"
                                         >
                                             <option value="custom">-- Pilih Format (Auto-Fill) --</option>
-                                            <optgroup label="Format Populer (300 DPI)">
-                                                <option value="1205x1795">10 x 15 cm (4 x 6 in) (Borderless) - 1205 x 1795 px</option>
-                                                <option value="945x1772">Frame Receipt - 945 x 1772 px</option>
-                                                <option value="889x2000">Frame Receipt - 889 x 2000 px</option>
-                                            </optgroup>
-                                            <optgroup label="Digital / Screen">
-                                                <option value="1080x1920">Full HD Portrait (9:16) - 1080 x 1920 px</option>
-                                                <option value="1080x1080">Instagram Square (1:1) - 1080 x 1080 px</option>
-                                            </optgroup>
+                                            {FRAME_FORMAT_PRESETS.map((group) => (
+                                                <optgroup key={group.group} label={group.group}>
+                                                    {group.options.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
                                         </select>
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                                             <ChevronDown className="w-4 h-4 text-[#A68B67]" />
