@@ -28,6 +28,7 @@ import { useSession } from 'next-auth/react';
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import SettingCard from '@/components/admin/settings/SettingCard';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 interface SystemSettings {
     id: string;
@@ -56,31 +57,18 @@ interface SystemSettings {
 
 export default function SettingsPage() {
     const { data: session } = useSession();
+    const { data: swrSettings, isLoading, mutate } = useAdminSettings();
     const [settings, setSettings] = useState<SystemSettings | null>(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-    // Check if user is Admin
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
 
     useEffect(() => {
-        fetchSettings();
-    }, []);
-
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch('/api/admin/settings', { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                setSettings(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch settings:', error);
-        } finally {
-            setLoading(false);
+        if (swrSettings) {
+            setSettings(swrSettings as unknown as SystemSettings);
         }
-    };
+    }, [swrSettings]);
 
     const handleSave = async () => {
         if (!settings) return;
@@ -95,6 +83,7 @@ export default function SettingsPage() {
 
             if (res.ok) {
                 setMessage({ type: 'success', text: 'Konfigurasi berhasil diperbarui!' });
+                void mutate();
                 setTimeout(() => setMessage(null), 3000);
             } else {
                 setMessage({ type: 'error', text: 'Gagal menyimpan perubahan.' });
@@ -112,7 +101,7 @@ export default function SettingsPage() {
         }
     };
 
-    if (loading) return <LoadingScreen message="Sinkronisasi Sistem..." />;
+    if (isLoading && !settings) return <LoadingScreen message="Sinkronisasi Sistem..." />;
 
     if (!settings) return (
         <div className="flex flex-col items-center justify-center h-[60vh] gap-6">

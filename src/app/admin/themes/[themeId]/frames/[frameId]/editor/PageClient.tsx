@@ -6,7 +6,9 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Rnd } from 'react-rnd';
 import { ArrowLeft, Plus, Trash2, Save, Eye, EyeOff, Move, Layers, RotateCw, Square } from 'lucide-react';
-import BackgroundRemoverPanel from '@/components/admin/frames/BackgroundRemoverPanel';
+import BackgroundRemoverPanel, {
+    type BackgroundRemoverPanelHandle,
+} from '@/components/admin/frames/BackgroundRemoverPanel';
 import { loadImage, sampleImageColorAtPoint, type RgbColor } from '@/lib/chromaKey';
 
 interface Slot {
@@ -24,6 +26,8 @@ interface Frame {
     name: string;
     imageUrl: string;
     originalImageUrl?: string | null;
+    chromaKeyColor?: string | null;
+    chromaKeyTolerance?: number | null;
     previewUrl: string;
     outputWidth: number;
     outputHeight: number;
@@ -59,10 +63,14 @@ export default function SlotEditorPage() {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasAreaRef = useRef<HTMLDivElement>(null);
     const eyedropperImageRef = useRef<HTMLImageElement | null>(null);
+    const backgroundRemoverRef = useRef<BackgroundRemoverPanelHandle | null>(null);
 
     const [frame, setFrame] = useState<Frame | null>(null);
     const [activeImageUrl, setActiveImageUrl] = useState('');
     const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+    const [chromaKeyColor, setChromaKeyColor] = useState<string | null>(null);
+    const [chromaKeyTolerance, setChromaKeyTolerance] = useState<number | null>(null);
+    const [imageVersion, setImageVersion] = useState(0);
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
     const [eyedropperActive, setEyedropperActive] = useState(false);
     const [pickedColor, setPickedColor] = useState<RgbColor | null>(null);
@@ -153,12 +161,19 @@ export default function SlotEditorPage() {
     const handleFrameImageUpdated = ({
         imageUrl,
         originalImageUrl: nextOriginal,
+        chromaKeyColor: nextChromaColor,
+        chromaKeyTolerance: nextChromaTolerance,
     }: {
         imageUrl: string;
         originalImageUrl: string;
+        chromaKeyColor: string;
+        chromaKeyTolerance: number;
     }) => {
         setActiveImageUrl(imageUrl);
         setOriginalImageUrl(nextOriginal);
+        setChromaKeyColor(nextChromaColor);
+        setChromaKeyTolerance(nextChromaTolerance);
+        setImageVersion((value) => value + 1);
         setPreviewImageUrl(null);
         setFrame((prev) =>
             prev
@@ -166,6 +181,8 @@ export default function SlotEditorPage() {
                       ...prev,
                       imageUrl,
                       originalImageUrl: nextOriginal,
+                      chromaKeyColor: nextChromaColor,
+                      chromaKeyTolerance: nextChromaTolerance,
                   }
                 : prev,
         );
@@ -179,6 +196,11 @@ export default function SlotEditorPage() {
                 setFrame(data);
                 setActiveImageUrl(data.imageUrl);
                 setOriginalImageUrl(data.originalImageUrl || null);
+                setChromaKeyColor(data.chromaKeyColor || null);
+                setChromaKeyTolerance(
+                    data.chromaKeyTolerance != null ? Number(data.chromaKeyTolerance) : null,
+                );
+                setImageVersion((value) => value + 1);
                 setPreviewImageUrl(null);
                 setFramePosition(data.framePosition || 'overlay');
                 // Ensure slots have IDs
@@ -254,6 +276,14 @@ export default function SlotEditorPage() {
     const saveSlots = async () => {
         setSaving(true);
         try {
+            if (backgroundRemoverRef.current?.hasPendingPreview()) {
+                const applied = await backgroundRemoverRef.current.applyPendingChanges();
+                if (!applied) {
+                    alert('Gagal menyimpan hapus background. Periksa warna pick dan toleransi, lalu coba lagi.');
+                    return;
+                }
+            }
+
             // Remove id before saving (not needed in DB)
             const slotsToSave = slots.map(({ id, ...rest }) => rest);
 
@@ -358,9 +388,14 @@ export default function SlotEditorPage() {
 
     // Render frame image
     const displayImageUrl = previewImageUrl || activeImageUrl || frame.imageUrl;
+    const frameHasProcessedBackground = Boolean(
+        originalImageUrl && originalImageUrl !== (activeImageUrl || frame.imageUrl),
+    );
+    const showTransparencyGrid = Boolean(previewImageUrl || frameHasProcessedBackground);
 
     const renderFrame = () => (
         <img
+            key={`${displayImageUrl}-${imageVersion}`}
             src={displayImageUrl}
             alt={frame.name}
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
@@ -438,14 +473,14 @@ export default function SlotEditorPage() {
                         <div
                             ref={canvasAreaRef}
                             className={`relative shadow-[0_30px_60px_rgba(0,0,0,0.5)] overflow-hidden ${
-                                previewImageUrl ? '' : 'bg-white'
+                                showTransparencyGrid ? '' : 'bg-white'
                             } ${eyedropperActive ? 'cursor-crosshair ring-2 ring-[#A68B67]/60' : ''}`}
                             style={{
                                 width: containerSize.width || 'auto',
                                 height: containerSize.height || 'auto',
                             }}
                         >
-                            {previewImageUrl && (
+                            {showTransparencyGrid && (
                                 <div
                                     aria-hidden
                                     className="transparency-checker absolute inset-0 pointer-events-none"
@@ -534,9 +569,12 @@ export default function SlotEditorPage() {
 
                 <div className="lg:col-span-4 space-y-10">
                     <BackgroundRemoverPanel
+                        ref={backgroundRemoverRef}
                         frameId={frameId}
                         sourceImageUrl={activeImageUrl || frame.imageUrl}
                         originalImageUrl={originalImageUrl}
+                        initialChromaKeyColor={chromaKeyColor}
+                        initialChromaKeyTolerance={chromaKeyTolerance}
                         eyedropperActive={eyedropperActive}
                         onEyedropperActiveChange={setEyedropperActive}
                         pickedColor={pickedColor}

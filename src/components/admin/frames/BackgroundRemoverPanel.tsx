@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { Eraser, Eye, Loader2, Pipette, RotateCcw, Sparkles } from 'lucide-react';
 import {
   canvasToBlob,
@@ -11,10 +18,17 @@ import {
   type RgbColor,
 } from '@/lib/chromaKey';
 
+export type BackgroundRemoverPanelHandle = {
+  applyPendingChanges: () => Promise<boolean>;
+  hasPendingPreview: () => boolean;
+};
+
 interface BackgroundRemoverPanelProps {
   frameId: string;
   sourceImageUrl: string;
   originalImageUrl: string | null;
+  initialChromaKeyColor?: string | null;
+  initialChromaKeyTolerance?: number | null;
   eyedropperActive: boolean;
   onEyedropperActiveChange: (active: boolean) => void;
   pickedColor: RgbColor | null;
@@ -23,10 +37,13 @@ interface BackgroundRemoverPanelProps {
   onFrameImageUpdated: (params: {
     imageUrl: string;
     originalImageUrl: string;
+    chromaKeyColor: string;
+    chromaKeyTolerance: number;
   }) => void;
 }
 
 const PREVIEW_DEBOUNCE_MS = 180;
+const SETTINGS_SAVE_DEBOUNCE_MS = 600;
 
 async function uploadFrameImage(file: File): Promise<string> {
   const formData = new FormData();
@@ -42,21 +59,46 @@ async function uploadFrameImage(file: File): Promise<string> {
   return data.url;
 }
 
-export default function BackgroundRemoverPanel({
-  frameId,
-  sourceImageUrl,
-  originalImageUrl,
-  eyedropperActive,
-  onEyedropperActiveChange,
-  pickedColor,
-  onPickedColorConsumed,
-  onPreviewUrlChange,
-  onFrameImageUpdated,
-}: BackgroundRemoverPanelProps) {
-  const [colorHex, setColorHex] = useState('#ffffff');
-  const [tolerance, setTolerance] = useState(35);
-  const [debouncedTolerance, setDebouncedTolerance] = useState(35);
-  const [debouncedColorHex, setDebouncedColorHex] = useState('#ffffff');
+async function persistChromaSettings(
+  frameId: string,
+  chromaKeyColor: string,
+  chromaKeyTolerance: number,
+): Promise<void> {
+  const res = await fetch(`/api/admin/frames/${frameId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chromaKeyColor, chromaKeyTolerance }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Gagal menyimpan pengaturan chroma key');
+  }
+}
+
+const BackgroundRemoverPanel = forwardRef<
+  BackgroundRemoverPanelHandle,
+  BackgroundRemoverPanelProps
+>(function BackgroundRemoverPanel(
+  {
+    frameId,
+    sourceImageUrl,
+    originalImageUrl,
+    initialChromaKeyColor,
+    initialChromaKeyTolerance,
+    eyedropperActive,
+    onEyedropperActiveChange,
+    pickedColor,
+    onPickedColorConsumed,
+    onPreviewUrlChange,
+    onFrameImageUpdated,
+  },
+  ref,
+) {
+  const [colorHex, setColorHex] = useState(initialChromaKeyColor || '#ffffff');
+  const [tolerance, setTolerance] = useState(initialChromaKeyTolerance ?? 35);
+  const [debouncedTolerance, setDebouncedTolerance] = useState(initialChromaKeyTolerance ?? 35);
+  const [debouncedColorHex, setDebouncedColorHex] = useState(initialChromaKeyColor || '#ffffff');
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [loadingImage, setLoadingImage] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -66,6 +108,8 @@ export default function BackgroundRemoverPanel({
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
   const previewJobRef = useRef(0);
+  const hasLivePreviewRef = useRef(false);
+  const skipSettingsPersistRef = useRef(true);
 
   const processingSourceUrl = originalImageUrl || sourceImageUrl;
   const canReset = Boolean(originalImageUrl && originalImageUrl !== sourceImageUrl);
@@ -76,6 +120,17 @@ export default function BackgroundRemoverPanel({
       previewObjectUrlRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (initialChromaKeyColor) {
+      setColorHex(initialChromaKeyColor);
+      setDebouncedColorHex(initialChromaKeyColor);
+    }
+    if (initialChromaKeyTolerance != null) {
+      setTolerance(initialChromaKeyTolerance);
+      setDebouncedTolerance(initialChromaKeyTolerance);
+    }
+  }, [initialChromaKeyColor, initialChromaKeyTolerance]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -90,6 +145,24 @@ export default function BackgroundRemoverPanel({
     }, PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [colorHex]);
+
+  useEffect(() => {
+    if (skipSettingsPersistRef.current) {
+      skipSettingsPersistRef.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const rgb = hexToRgb(colorHex);
+      if (!rgb) return;
+
+      void persistChromaSettings(frameId, colorHex, tolerance).catch(() => {
+        // Non-blocking: warna tetap dipakai untuk preview meski DB belum migrate
+      });
+    }, SETTINGS_SAVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [colorHex, tolerance, frameId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +193,7 @@ export default function BackgroundRemoverPanel({
     if (!previewEnabled || !loadedImage) {
       revokePreviewUrl();
       onPreviewUrlChange(null);
+      hasLivePreviewRef.current = false;
       setPreviewBusy(false);
       return;
     }
@@ -143,6 +217,7 @@ export default function BackgroundRemoverPanel({
           revokePreviewUrl();
           const objectUrl = URL.createObjectURL(blob);
           previewObjectUrlRef.current = objectUrl;
+          hasLivePreviewRef.current = true;
           onPreviewUrlChange(objectUrl);
           setPreviewBusy(false);
         }, 'image/png');
@@ -169,13 +244,13 @@ export default function BackgroundRemoverPanel({
     return () => revokePreviewUrl();
   }, [revokePreviewUrl]);
 
-  const handleApply = async () => {
-    if (!loadedImage) return;
+  const applyChromaKey = useCallback(async (): Promise<boolean> => {
+    if (!loadedImage) return false;
 
     const rgb = hexToRgb(colorHex);
     if (!rgb) {
       setError('Warna tidak valid');
-      return;
+      return false;
     }
 
     setProcessing(true);
@@ -196,6 +271,8 @@ export default function BackgroundRemoverPanel({
         body: JSON.stringify({
           imageUrl: uploadedUrl,
           originalImageUrl: nextOriginal,
+          chromaKeyColor: colorHex,
+          chromaKeyTolerance: tolerance,
         }),
       });
 
@@ -207,22 +284,48 @@ export default function BackgroundRemoverPanel({
 
       const saved = await res.json();
 
+      revokePreviewUrl();
+      hasLivePreviewRef.current = false;
+      onPreviewUrlChange(null);
+
       onFrameImageUpdated({
         imageUrl: uploadedUrl,
         originalImageUrl: nextOriginal,
+        chromaKeyColor: colorHex,
+        chromaKeyTolerance: tolerance,
       });
-      setPreviewEnabled(false);
-      onPreviewUrlChange(null);
 
       if (saved.warning) {
         setError(saved.warning);
       }
+
+      return true;
     } catch (err) {
       setError((err as Error).message || 'Gagal menerapkan hapus background');
+      return false;
     } finally {
       setProcessing(false);
     }
-  };
+  }, [
+    loadedImage,
+    colorHex,
+    tolerance,
+    frameId,
+    originalImageUrl,
+    sourceImageUrl,
+    onFrameImageUpdated,
+    onPreviewUrlChange,
+    revokePreviewUrl,
+  ]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyPendingChanges: applyChromaKey,
+      hasPendingPreview: () => previewEnabled && hasLivePreviewRef.current,
+    }),
+    [applyChromaKey, previewEnabled],
+  );
 
   const handleReset = async () => {
     if (!originalImageUrl) return;
@@ -236,6 +339,8 @@ export default function BackgroundRemoverPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: originalImageUrl,
+          chromaKeyColor: null,
+          chromaKeyTolerance: null,
         }),
       });
 
@@ -247,7 +352,13 @@ export default function BackgroundRemoverPanel({
       onFrameImageUpdated({
         imageUrl: originalImageUrl,
         originalImageUrl,
+        chromaKeyColor: '#ffffff',
+        chromaKeyTolerance: 35,
       });
+      setColorHex('#ffffff');
+      setDebouncedColorHex('#ffffff');
+      setTolerance(35);
+      setDebouncedTolerance(35);
       setPreviewEnabled(true);
     } catch (err) {
       setError((err as Error).message || 'Gagal reset ke gambar asli');
@@ -292,7 +403,7 @@ export default function BackgroundRemoverPanel({
           {eyedropperActive ? 'Klik Area BG di Canvas' : 'Pick Warna dari Canvas'}
         </button>
 
-                        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <label className="text-[10px] font-bold uppercase tracking-widest text-[#4A3F35] shrink-0">
             Warna BG
           </label>
@@ -371,7 +482,7 @@ export default function BackgroundRemoverPanel({
         <div className="grid grid-cols-1 gap-2">
           <button
             type="button"
-            onClick={handleApply}
+            onClick={() => void applyChromaKey()}
             disabled={processing || loadingImage || !loadedImage}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#4A3F35] hover:bg-[#2D2824] text-white text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-40"
           >
@@ -406,4 +517,6 @@ export default function BackgroundRemoverPanel({
       </div>
     </div>
   );
-}
+});
+
+export default BackgroundRemoverPanel;

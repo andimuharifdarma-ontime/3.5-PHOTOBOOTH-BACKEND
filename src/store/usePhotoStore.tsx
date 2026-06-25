@@ -163,16 +163,20 @@ export const PhotoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => {
         fetchSettings();
-        
-        // Poll every 20 seconds for "real-time" sync without reload
-        // Added visibility check to prevent excessive requests when tab is inactive
-        const interval = setInterval(() => {
+
+        const syncOnFocus = () => {
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
                 fetchSettings();
             }
-        }, 20000);
-        
-        return () => clearInterval(interval);
+        };
+
+        window.addEventListener('focus', syncOnFocus);
+        document.addEventListener('visibilitychange', syncOnFocus);
+
+        return () => {
+            window.removeEventListener('focus', syncOnFocus);
+            document.removeEventListener('visibilitychange', syncOnFocus);
+        };
     }, []);
 
     // Persist & hydrate photos and selected frame

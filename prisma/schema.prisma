@@ -82,6 +82,8 @@ model Frame {
   name          String
   imageUrl          String
   originalImageUrl  String?
+  chromaKeyColor      String?
+  chromaKeyTolerance  Int?
   previewUrl        String
   price         Int        @default(5000)
   outputWidth   Int        @default(1080)
@@ -95,6 +97,8 @@ model Frame {
   maxSlots      Int        @default(4)
   padding       Float      @default(0)
   theme         FrameTheme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@index([themeId])
 }
 
 model PrintOrder {
@@ -120,6 +124,9 @@ model PrintOrder {
   @@index([createdAt])
   @@index([userName])
   @@index([adminUserId])
+  @@index([paymentStatus, createdAt])
+  @@index([adminUserId, createdAt])
+  @@index([userName, createdAt])
 }
 
 model AdminUser {

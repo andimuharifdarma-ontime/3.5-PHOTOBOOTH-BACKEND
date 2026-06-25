@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Download, RefreshCw, FolderDown, Image as ImageIcon, Video, FileJson, Play, Trash2, Clock, Cloud } from 'lucide-react';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import { motion, AnimatePresence } from 'framer-motion';
+import PaginationBar from '@/components/ui/PaginationBar';
 
 type SupabaseFile = {
     name: string;
@@ -28,6 +27,9 @@ export default function CloudGalleryPage() {
     const [activeTab, setActiveTab] = useState<FileCategory>('Picture');
     const [files, setFiles] = useState<SupabaseFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const filesPerPage = 48;
     const [isZipping, setIsZipping] = useState(false);
     const [zipProgress, setZipProgress] = useState(0);
     const [photoRetentionDays, setPhotoRetentionDays] = useState<number>(7);
@@ -35,26 +37,29 @@ export default function CloudGalleryPage() {
     const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
     const [showConfirmCleanup, setShowConfirmCleanup] = useState(false);
 
-    const fetchFiles = async () => {
+    const fetchFiles = async (pageNumber = page) => {
         setIsLoading(true);
         try {
-            // Fetch from images folder
-            const resImages = await fetch('/api/admin/supabase-files?folder=images');
-            const dataImages = await resImages.json();
+            const query = `folder=images&page=${pageNumber}&limit=${filesPerPage}`;
+            const queryLive = `folder=live-photos&page=${pageNumber}&limit=${filesPerPage}`;
 
-            // Fetch from live-photos folder
-            const resLive = await fetch('/api/admin/supabase-files?folder=live-photos');
+            const [resImages, resLive] = await Promise.all([
+                fetch(`/api/admin/supabase-files?${query}`),
+                fetch(`/api/admin/supabase-files?${queryLive}`),
+            ]);
+
+            const dataImages = await resImages.json();
             const dataLive = await resLive.json();
 
             const allFiles = [
-                ...(dataImages.files || []).map((f: any) => ({ ...f, folder: 'images' })),
-                ...(dataLive.files || []).map((f: any) => ({ ...f, folder: 'live-photos' }))
+                ...(dataImages.files || []).map((f: SupabaseFile) => ({ ...f, folder: 'images' })),
+                ...(dataLive.files || []).map((f: SupabaseFile) => ({ ...f, folder: 'live-photos' })),
             ];
-            
-            // Sort by newest
+
             allFiles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            
+
             setFiles(allFiles);
+            setHasMore(Boolean(dataImages.hasMore || dataLive.hasMore));
         } catch (error) {
             console.error('Failed to fetch files', error);
         } finally {
@@ -63,14 +68,14 @@ export default function CloudGalleryPage() {
     };
 
     useEffect(() => {
-        fetchFiles();
+        void fetchFiles(page);
         fetch('/api/admin/cleanup-storage')
             .then(r => r.json())
             .then(data => {
                 if (data.photoRetentionDays) setPhotoRetentionDays(data.photoRetentionDays);
             })
             .catch(console.error);
-    }, []);
+    }, [page]);
 
     const handleCleanup = async () => {
         setIsCleaning(true);
@@ -114,6 +119,7 @@ export default function CloudGalleryPage() {
 
     const handleDownloadSingle = async (file: SupabaseFile) => {
         try {
+            const { saveAs } = await import('file-saver');
             const response = await fetch(file.url);
             const blob = await response.blob();
             saveAs(blob, file.name);
@@ -132,6 +138,10 @@ export default function CloudGalleryPage() {
         setZipProgress(0);
 
         try {
+            const [{ default: JSZip }, { saveAs }] = await Promise.all([
+                import('jszip'),
+                import('file-saver'),
+            ]);
             const zip = new JSZip();
             const folder = zip.folder(`backup_${activeTab.toLowerCase()}_${new Date().toISOString().slice(0,10)}`);
 
@@ -227,7 +237,7 @@ export default function CloudGalleryPage() {
                         </button>
 
                         <button
-                            onClick={fetchFiles}
+                            onClick={() => void fetchFiles(page)}
                             disabled={isLoading}
                             className="flex items-center gap-2 px-6 py-3 bg-white/[0.06] backdrop-blur-md border border-white/10 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-all disabled:opacity-50"
                         >
@@ -338,6 +348,15 @@ export default function CloudGalleryPage() {
                         })}
                     </AnimatePresence>
                 </div>
+            )}
+
+            {!isLoading && (
+                <PaginationBar
+                    page={page}
+                    totalPages={hasMore ? page + 1 : page}
+                    totalItems={files.length}
+                    onPageChange={setPage}
+                />
             )}
 
             {showConfirmCleanup && (

@@ -10,6 +10,8 @@ import {
     Banknote,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
+import { useAdminSettings, useAdminThemes, useAdminUsers } from '@/hooks/useAdminSettings';
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -36,12 +38,10 @@ interface User {
     name: string;
     email: string;
     role: string;
-    isPaymentEnabled: boolean;
+    isPaymentEnabled?: boolean;
 }
 
 export default function ThemesPage() {
-    const [themes, setThemes] = useState<Theme[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
     const [formData, setFormData] = useState({
@@ -59,118 +59,56 @@ export default function ThemesPage() {
         show: false,
         id: null
     });
-    const [isPaymentEnabled, setIsPaymentEnabled] = useState<boolean>(true);
     const { data: session } = useSession();
-    const [userProfile, setUserProfile] = useState<any>(null);
+    const { userProfile, profileLoaded } = useAdminProfile();
 
     const isAdmin = (session?.user as any)?.role === 'ADMIN' || userProfile?.role === 'ADMIN';
     const isKaryawan = (session?.user as any)?.role === 'KARYAWAN' || userProfile?.role === 'KARYAWAN';
     const canManageThemes = isAdmin || (isKaryawan && (userProfile?.canManageThemes === true || (session?.user as any)?.canManageThemes === true)) || (userProfile?.role === 'CLIENT' && userProfile?.canManageThemes === true);
 
-    // Sub-page states
     const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
-    const [users, setUsers] = useState<User[]>([]);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-    useEffect(() => {
-        fetchProfile();
-    }, [session]);
+    const role = userProfile?.role || (session?.user as any)?.role;
+    const themesUserName = selectedUser?.name || (role === 'CLIENT' ? userProfile?.name : undefined);
+
+    const { data: users = [], isLoading: usersLoading } = useAdminUsers(
+        profileLoaded && (role === 'ADMIN' || role === 'KARYAWAN') && viewMode === 'list',
+    );
+
+    const { data: settingsData } = useAdminSettings(selectedUser?.id);
+    const userIsPaymentEnabled = userProfile?.isPaymentEnabled !== undefined
+        ? userProfile.isPaymentEnabled
+        : (session?.user as any)?.isPaymentEnabled;
+    const isPaymentEnabled = role === 'CLIENT' && userIsPaymentEnabled !== undefined
+        ? userIsPaymentEnabled
+        : settingsData?.isPaymentEnabled !== false;
+
+    const { data: themes = [], isLoading: themesLoading, mutate: mutateThemes } = useAdminThemes(
+        themesUserName,
+        profileLoaded && viewMode === 'detail',
+    );
+
+    const loading = (viewMode === 'list' && usersLoading) || (viewMode === 'detail' && themesLoading && themes.length === 0);
 
     useEffect(() => {
-        if (userProfile) {
-            fetchSettings();
-        }
-    }, [userProfile, selectedUser]);
+        if (!profileLoaded && !session?.user) return;
 
-    useEffect(() => {
-        if (userProfile || session?.user) {
-            const role = userProfile?.role || (session?.user as any)?.role;
-            if (role === 'CLIENT') {
-                setViewMode('detail');
-                fetchThemes();
-            } else if (role === 'ADMIN' || role === 'KARYAWAN') {
-                setViewMode('list');
-                fetchUsers();
-            }
+        if (role === 'CLIENT') {
+            setViewMode('detail');
+        } else if (role === 'ADMIN' || role === 'KARYAWAN') {
+            setViewMode('list');
         }
-    }, [userProfile, session]);
-
-    const fetchProfile = async () => {
-        try {
-            const res = await fetch('/api/admin/profile');
-            if (res.ok) {
-                const data = await res.json();
-                setUserProfile(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    };
-
-    const fetchSettings = async () => {
-        const role = userProfile?.role || (session?.user as any)?.role;
-        const userIsPaymentEnabled = userProfile?.isPaymentEnabled !== undefined
-            ? userProfile.isPaymentEnabled
-            : (session?.user as any)?.isPaymentEnabled;
-
-        if (role === 'CLIENT' && userIsPaymentEnabled !== undefined) {
-            setIsPaymentEnabled(userIsPaymentEnabled);
-            return;
-        }
-
-        try {
-            const url = selectedUser ? `/api/admin/settings?userId=${selectedUser.id}` : '/api/admin/settings';
-            const res = await fetch(url, { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                setIsPaymentEnabled(data.isPaymentEnabled !== false);
-            }
-        } catch (error) {
-            console.error('Failed to fetch settings:', error);
-        }
-    };
-
-    const fetchUsers = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch('/api/admin/users');
-            if (res.ok) {
-                const data = await res.json();
-                setUsers(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch users:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchThemes = async (userName = '') => {
-        try {
-            const url = userName ? `/api/admin/themes?userName=${userName}` : '/api/admin/themes';
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                setThemes(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch themes:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [profileLoaded, session, role]);
 
     const handleUserSelect = (user: User) => {
         setSelectedUser(user);
         setViewMode('detail');
-        setIsPaymentEnabled(user.isPaymentEnabled);
-        fetchThemes(user.name);
     };
 
     const handleBackToList = () => {
         setSelectedUser(null);
         setViewMode('list');
-        setThemes([]);
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,7 +160,7 @@ export default function ThemesPage() {
             });
 
             if (res.ok) {
-                fetchThemes(selectedUser?.name || userProfile?.name || '');
+                void mutateThemes();
                 closeModal();
             } else {
                 const errorData = await res.json();
@@ -243,7 +181,7 @@ export default function ThemesPage() {
         try {
             const res = await fetch(`/api/admin/themes/${deleteModal.id}`, { method: 'DELETE' });
             if (res.ok) {
-                fetchThemes(selectedUser?.name || userProfile?.name || '');
+                void mutateThemes();
                 setDeleteModal({ show: false, id: null });
             }
         } catch (error) {

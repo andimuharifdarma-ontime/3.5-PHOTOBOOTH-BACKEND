@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { PhotoProvider } from "@/store/usePhotoStore";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { SyncProvider } from "@/components/providers/SyncProvider";
 
@@ -56,9 +55,7 @@ export default async function RootLayout({
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <AuthProvider>
           <SyncProvider>
-            <PhotoProvider>
-              {children}
-            </PhotoProvider>
+            {children}
           </SyncProvider>
         </AuthProvider>
       </body>

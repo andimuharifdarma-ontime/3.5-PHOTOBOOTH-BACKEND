@@ -8,7 +8,7 @@ interface User {
     name: string;
     email: string;
     role: string;
-    isPaymentEnabled: boolean;
+    isPaymentEnabled?: boolean;
 }
 
 interface UserSelectionListProps {

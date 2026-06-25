@@ -13,17 +13,18 @@ function getSupabase() {
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const folder = searchParams.get('folder') || 'images'; // images or live-photos
-        
+        const folder = searchParams.get('folder') || 'images';
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+        const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '48', 10)));
+        const offset = (page - 1) * limit;
+
         const supabase = getSupabase();
-        
-        // Let's fetch with a high limit, or implement pagination if needed. 
-        // Supabase storage list limit is 1000 max per request usually, but let's fetch up to 1000.
+
         const { data: files, error } = await supabase.storage
             .from(BUCKET_NAME)
             .list(folder, {
-                limit: 1000,
-                offset: 0,
+                limit,
+                offset,
                 sortBy: { column: 'created_at', order: 'desc' }
             });
 
@@ -32,12 +33,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        // Generate public URLs for each file
         const filesWithUrl = files?.filter(f => f.name !== '.emptyFolderPlaceholder').map(file => {
             const { data: urlData } = supabase.storage
                 .from(BUCKET_NAME)
                 .getPublicUrl(`${folder}/${file.name}`);
-                
+
             return {
                 name: file.name,
                 url: urlData.publicUrl,
@@ -46,7 +46,12 @@ export async function GET(request: Request) {
             };
         }) || [];
 
-        return NextResponse.json({ files: filesWithUrl });
+        return NextResponse.json({
+            files: filesWithUrl,
+            page,
+            limit,
+            hasMore: filesWithUrl.length === limit,
+        });
     } catch (e: any) {
         console.error('Error fetching supabase files:', e);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

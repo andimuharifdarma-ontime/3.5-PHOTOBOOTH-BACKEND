@@ -1,5 +1,15 @@
+import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
-import DownloadPageClient from './DownloadPageClient';
+
+const DownloadPageClient = dynamic(() => import('./DownloadPageClient'), {
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
+      <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#A68B67] animate-pulse">
+        Memuat halaman download...
+      </p>
+    </div>
+  ),
+});
 
 export default function DownloadPage() {
   return (
