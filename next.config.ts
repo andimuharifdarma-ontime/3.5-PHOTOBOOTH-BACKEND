@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
+    // Reduce Image Optimization cache writes when next/image is used elsewhere.
+    minimumCacheTTL: 2678400, // 31 days
     remotePatterns: [
       {
         protocol: 'https',
@@ -13,6 +15,8 @@ const nextConfig: NextConfig = {
         hostname: '**.vercel-storage.com',
       },
     ],
+    imageSizes: [64, 128, 256, 384],
+    deviceSizes: [640, 828, 1080],
   },
   async headers() {
     return [

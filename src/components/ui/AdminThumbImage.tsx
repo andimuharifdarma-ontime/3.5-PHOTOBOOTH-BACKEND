@@ -1,32 +1,28 @@
 'use client';
 
-import Image from 'next/image';
-
 type AdminThumbImageProps = {
   src: string;
   alt: string;
   className?: string;
-  sizes?: string;
   priority?: boolean;
 };
 
+/** Admin thumbnails load directly from Supabase — no Vercel Image Optimization. */
 export default function AdminThumbImage({
   src,
   alt,
   className = '',
-  sizes = '(max-width: 768px) 50vw, 280px',
   priority = false,
 }: AdminThumbImageProps) {
   if (!src) return null;
 
   return (
-    <Image
+    <img
       src={src}
       alt={alt}
-      fill
-      sizes={sizes}
-      priority={priority}
-      className={className}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
+      className={`absolute inset-0 h-full w-full ${className}`}
     />
   );
 }
