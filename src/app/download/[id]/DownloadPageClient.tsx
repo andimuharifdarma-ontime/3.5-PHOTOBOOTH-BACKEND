@@ -930,20 +930,21 @@ const DownloadPageClient = () => {
       const blob = await response.blob();
       let videoBlob = blob;
 
-      if (contentType.includes('gif') || blob.type.includes('gif') || gifUrl.includes('.gif')) {
-        videoBlob = await convertGifToMp4(blob);
-      } else if (!(await isMobileCompatibleMp4(blob))) {
-        if (photos.length >= 4) {
-          try {
-            videoBlob = await convertGifToMp4(blob);
-          } catch {
-            videoBlob = blob;
-          }
-        }
-      }
+      const alreadyMobileMp4 =
+        contentType.includes('mp4') ||
+        blob.type.includes('mp4') ||
+        (await isMobileCompatibleMp4(blob));
 
-      videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
-      videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      if (alreadyMobileMp4) {
+        videoBlob = new Blob([await blob.arrayBuffer()], { type: 'video/mp4' });
+      } else if (contentType.includes('gif') || blob.type.includes('gif') || gifUrl.includes('.gif')) {
+        videoBlob = await convertGifToMp4(blob);
+        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
+        videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      } else {
+        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
+        videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      }
 
       const url = URL.createObjectURL(videoBlob);
       const link = document.createElement('a');
@@ -973,16 +974,21 @@ const DownloadPageClient = () => {
 
     setIsDownloadingLivePhoto(true);
     try {
-      const { ensureMobileMp4 } = await loadMobileMp4();
-
       const response = await fetch(livePhotoUrl);
       if (!response.ok) throw new Error('Failed to fetch video');
 
       const blob = await response.blob();
-      let videoBlob = livePhotoUrl.startsWith('blob:')
-        ? blob
-        : await ensureMobileMp4(blob, 'live-photo.webm');
-      videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      const fromServer = !livePhotoUrl.startsWith('blob:');
+      let videoBlob: Blob;
+
+      if (fromServer) {
+        videoBlob = new Blob([await blob.arrayBuffer()], { type: 'video/mp4' });
+      } else {
+        const { ensureMobileMp4 } = await loadMobileMp4();
+        videoBlob = await ensureMobileMp4(blob, 'live-photo.webm');
+        videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
+      }
+
       const blobUrl = URL.createObjectURL(videoBlob);
 
       const link = document.createElement('a');
