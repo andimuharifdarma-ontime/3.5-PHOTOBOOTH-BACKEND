@@ -1,14 +1,8 @@
-type GifConstructor = new (options: Record<string, unknown>) => {
-  addFrame: (canvas: HTMLCanvasElement | CanvasRenderingContext2D, options?: { copy?: boolean; delay?: number }) => void;
-  on: (event: string, callback: (blob: Blob) => void) => void;
-  render: () => void;
-};
-
-let gifModulePromise: Promise<{ default: GifConstructor }> | null = null;
+let gifModulePromise: Promise<typeof import('gif.js')> | null = null;
 
 async function loadGifModule() {
   if (!gifModulePromise) {
-    gifModulePromise = import('gif.js') as Promise<{ default: GifConstructor }>;
+    gifModulePromise = import('gif.js');
   }
   return gifModulePromise;
 }
