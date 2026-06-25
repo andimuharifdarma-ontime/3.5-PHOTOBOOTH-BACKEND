@@ -3,10 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, FileImage, FileVideo, Archive, Loader2, PlaySquare, Image as ImageIcon, Search } from 'lucide-react';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import PaginationBar from '@/components/ui/PaginationBar';
 
 interface GalleryItem {
     id: string;
@@ -23,23 +22,44 @@ export default function GalleryPage() {
     const [items, setItems] = useState<GalleryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedSearch(searchQuery), 300);
+        return () => window.clearTimeout(timer);
+    }, [searchQuery]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [debouncedSearch]);
 
     useEffect(() => {
         if (status === 'unauthenticated') {
             router.push('/login');
         } else if (status === 'authenticated') {
-            fetchGallery();
+            void fetchGallery(page);
         }
-    }, [status, router]);
+    }, [status, router, page, debouncedSearch]);
 
-    const fetchGallery = async () => {
+    const fetchGallery = async (pageNumber = page) => {
+        setLoading(true);
         try {
-            const res = await fetch('/api/admin/gallery');
+            const params = new URLSearchParams({
+                page: String(pageNumber),
+                limit: '24',
+                search: debouncedSearch,
+            });
+            const res = await fetch(`/api/admin/gallery?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
                     setItems(data.items);
+                    setTotalPages(data.totalPages || 1);
+                    setTotalItems(data.total || 0);
                 }
             }
         } catch (error) {
@@ -54,6 +74,10 @@ export default function GalleryPage() {
         setDownloadingId(item.id);
 
         try {
+            const [{ default: JSZip }, { saveAs }] = await Promise.all([
+                import('jszip'),
+                import('file-saver'),
+            ]);
             const zip = new JSZip();
             const sid = item.sessionId;
 
@@ -106,11 +130,6 @@ export default function GalleryPage() {
         document.body.removeChild(a);
     };
 
-    const filteredItems = items.filter(item => 
-        item.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.frameName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
     if (loading) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#FDFBF7]">
@@ -141,7 +160,7 @@ export default function GalleryPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 <AnimatePresence>
-                    {filteredItems.map(item => (
+                    {items.map(item => (
                         <motion.div 
                             key={item.id}
                             layout
@@ -231,7 +250,7 @@ export default function GalleryPage() {
                     ))}
                 </AnimatePresence>
 
-                {filteredItems.length === 0 && (
+                {items.length === 0 && (
                     <div className="col-span-full py-20 text-center flex flex-col items-center justify-center border-2 border-dashed border-[#EAE1D3] rounded-2xl bg-white/50">
                         <ImageIcon className="w-12 h-12 text-[#EAE1D3] mb-4" />
                         <h3 className="text-lg font-sans text-[#8C7E6A]">Belum ada hasil foto</h3>
@@ -239,6 +258,13 @@ export default function GalleryPage() {
                     </div>
                 )}
             </div>
+
+            <PaginationBar
+                page={page}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                onPageChange={setPage}
+            />
         </div>
     );
 }

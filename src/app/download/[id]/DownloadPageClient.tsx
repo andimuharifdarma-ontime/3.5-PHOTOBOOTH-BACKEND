@@ -3,11 +3,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Home, ArrowLeft, CheckCircle2, Info, Sparkles, Eye, X, Clock } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-// @ts-ignore - gif.js tidak memiliki tipe bawaan yang lengkap
-import GIF from 'gif.js';
 import { usePhotoStore } from '@/store/usePhotoStore';
 import { applySlotTransformAndClip } from '@/lib/canvasUtils';
-import { encodeCanvasToMobileMp4, ensureMobileMp4, getVideoEncodeDimensions, isMobileCompatibleMp4, VIDEO_BUDGET_MAX_BYTES } from '@/lib/mobileMp4';
+import { createGifEncoder, loadMobileMp4 } from '@/lib/lazy-media';
+import {
+  computeExpirationFromId,
+  DEFAULT_PHOTO_RETENTION_DAYS,
+  pollUntilReady,
+  probeAssetReady,
+} from '@/lib/download-polling';
 
 const isVideoContent = (url: string) => {
   if (!url) return false;
@@ -62,7 +66,6 @@ const DownloadPageClient = () => {
   const { photos, resetAll, selectedFrame, frameCategory } = usePhotoStore();
   const [dbFrame, setDbFrame] = useState<any>(null);
   const [serverPhotos, setServerPhotos] = useState<{ dataUrl: string; originalUrl: string }[]>([]);
-  const [cacheBuster] = useState(() => Date.now());
   // Gabungan: pakai store jika ada, fallback ke server
   const availablePhotos = photos.length > 0 ? photos : serverPhotos;
 
@@ -202,6 +205,8 @@ const DownloadPageClient = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const getParams = async () => {
       const u = queryU;
       const ug = queryUg;
@@ -209,90 +214,72 @@ const DownloadPageClient = () => {
       const cleanId = routeId?.replace(/\.+$/, '') || '';
       setImageId(cleanId);
 
-      // 0) Client-side Expiration Check based on ID timestamp
-      const parts = cleanId.split('-');
-      const timestamp = parseInt(parts[parts.length - 1], 10);
-      if (!isNaN(timestamp) && timestamp > 1000000000000 && timestamp < 2500000000000) {
-        try {
-          const settingsRes = await fetch('/api/admin/settings', { cache: 'no-store' });
-          if (settingsRes.ok) {
-            const settingsData = await settingsRes.json();
-            const retentionDays = settingsData.photoRetentionDays || 7;
-            const limitMs = retentionDays * 24 * 60 * 60 * 1000;
-            const expAt = timestamp + limitMs;
-            const remainingMs = expAt - Date.now();
-
-            if (remainingMs <= 0) {
-              setError('expired');
-              setIsLoading(false);
-              return;
-            }
-
-            // Masih aktif → simpan expiresAt untuk countdown
-            setExpiresAt(expAt);
-            setTimeRemaining(Math.floor(remainingMs / 1000));
-          }
-        } catch (e) {
-          console.error('Failed to fetch settings for expiration check:', e);
+      const expiration = computeExpirationFromId(cleanId, DEFAULT_PHOTO_RETENTION_DAYS);
+      if (expiration) {
+        if (expiration.remainingSec <= 0) {
+          setError('expired');
+          setIsLoading(false);
+          return;
         }
+        setExpiresAt(expiration.expiresAt);
+        setTimeRemaining(expiration.remainingSec);
       }
 
-      const url = u || `${window.location.origin}/api/images/${cleanId}?v=${cacheBuster}`;
+      void fetch('/api/admin/settings', { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((settingsData) => {
+          if (cancelled || !settingsData?.photoRetentionDays || !cleanId) return;
+          const refined = computeExpirationFromId(cleanId, settingsData.photoRetentionDays);
+          if (!refined) return;
+          if (refined.remainingSec <= 0) {
+            setError('expired');
+            setIsLoading(false);
+            return;
+          }
+          setExpiresAt(refined.expiresAt);
+          setTimeRemaining(refined.remainingSec);
+        })
+        .catch(() => {});
+
+      const url = u || `${window.location.origin}/api/images/${cleanId}`;
       setImageUrl(url);
 
-      // Jika URL video sudah diberikan via query, set langsung tanpa polling
-      if (ug) {
-        setGifUrl(ug);
-      }
-      if (ul) {
-        setLivePhotoUrl(ul);
-      }
+      if (ug) setGifUrl(ug);
+      if (ul) setLivePhotoUrl(ul);
 
-      // Jika sudah diberikan URL publik blob, lewati polling dan tampilkan langsung
       if (u) {
         setIsLoading(false);
         return;
       }
 
-      // Polling ringan agar gambar muncul segera setelah tersedia (untuk URL API)
-      let attempts = 0;
-      const maxAttempts = 40; // ~30 detik
-      const intervalMs = 750;
-      let cleared = false;
-
-      const checkOnce = async () => {
-        try {
-          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-          if (res.status === 410) {
-            setError('expired');
-            setIsLoading(false);
-            return false;
-          }
-          if (res.ok) {
-            if (!cleared) {
-              setIsLoading(false);
+      const ready = await pollUntilReady(
+        async () => {
+          if (cancelled) return true;
+          try {
+            const res = await fetch(url, { method: 'HEAD', cache: 'no-store', redirect: 'follow' });
+            if (res.status === 410) {
+              setError('expired');
+              return true;
             }
-            return true;
-          }
-        } catch { }
-        return false;
-      };
+            if (res.ok) return true;
+          } catch { }
+          const fallback = await probeAssetReady(url);
+          return !!fallback;
+        },
+        { maxAttempts: 25, initialDelayMs: 600, maxDelayMs: 2500 },
+      );
 
-      checkOnce().then((ok) => {
-        if (ok) return;
-        const idInt = setInterval(async () => {
-          attempts++;
-          const okNow = await checkOnce();
-          if (okNow || attempts >= maxAttempts) {
-            clearInterval(idInt);
-            cleared = true;
-            setIsLoading(false);
-          }
-        }, intervalMs);
-      });
+      if (!cancelled) setIsLoading(false);
+      if (!ready && !cancelled) {
+        console.log('Main image not ready after polling window');
+      }
     };
-    getParams();
-  }, [routeId, queryU, queryUg, queryUl, cacheBuster]);
+
+    void getParams();
+    return () => {
+      cancelled = true;
+    };
+  }, [routeId, queryU, queryUg, queryUl]);
 
   // Countdown timer interval: hitung mundur per detik
   useEffect(() => {
@@ -330,194 +317,110 @@ const DownloadPageClient = () => {
     return '';
   };
 
-  // Fetch foto original dari server jika store kosong (HP scan QR)
+  // Fetch foto original dari server jika store kosong (HP scan QR) — paralel
   useEffect(() => {
     if (!imageId || photos.length > 0 || serverPhotos.length > 0) return;
 
+    let cancelled = false;
+
     const fetchOriginals = async () => {
       try {
-        // Cek metadata dulu untuk tahu jumlah foto
-        let photoCount = 4; // default
+        let photoCount = 4;
         try {
           const metaRes = await fetch(`/api/images/${imageId}-meta`, { cache: 'no-store' });
           if (metaRes.ok) {
-            const metaBlob = await metaRes.blob();
-            const metaText = await metaBlob.text();
+            const metaText = await metaRes.text();
             const meta = JSON.parse(metaText);
             if (meta.count) photoCount = meta.count;
           }
         } catch { }
 
-        // Fetch setiap foto original
-        const fetched: { dataUrl: string; originalUrl: string }[] = [];
-        for (let i = 0; i < photoCount; i++) {
-          try {
-            const url = `${window.location.origin}/api/images/${imageId}-orig-${i}`;
-            const res = await fetch(`${url}?v=${Date.now()}`, { cache: 'no-store' });
-            if (res.ok) {
-              fetched.push({ dataUrl: url, originalUrl: url });
-            }
-          } catch { }
-        }
+        const origin = window.location.origin;
+        const results = await Promise.all(
+          Array.from({ length: photoCount }, async (_, i) => {
+            const url = `${origin}/api/images/${imageId}-orig-${i}`;
+            const ready = await probeAssetReady(url);
+            return ready ? { dataUrl: url, originalUrl: url } : null;
+          }),
+        );
 
+        if (cancelled) return;
+
+        const fetched = results.filter((item): item is { dataUrl: string; originalUrl: string } => item != null);
         if (fetched.length > 0) {
           console.log(`✅ Fetched ${fetched.length} original photos from server`);
           setServerPhotos(fetched);
-        } else {
-          console.log('⚠️ No original photos found on server');
         }
       } catch (err) {
         console.error('Error fetching original photos:', err);
       }
     };
 
-    // Delay sedikit agar upload dari mesin punya waktu selesai
-    const timer = setTimeout(fetchOriginals, 3000);
-
-    // Retry setelah 10 detik jika pertama gagal
-    const retryTimer = setTimeout(() => {
-      if (serverPhotos.length === 0 && photos.length === 0) {
-        fetchOriginals();
-      }
-    }, 10000);
+    const timer = window.setTimeout(fetchOriginals, 2000);
+    const retryTimer = window.setTimeout(() => {
+      if (!cancelled) void fetchOriginals();
+    }, 8000);
 
     return () => {
-      clearTimeout(timer);
-      clearTimeout(retryTimer);
+      cancelled = true;
+      window.clearTimeout(timer);
+      window.clearTimeout(retryTimer);
     };
   }, [imageId, photos.length, serverPhotos.length]);
 
-  // Setelah imageId tersedia, mulai polling video bonus lebih awal dan lebih cepat
+  // Poll bonus GIF/MP4 dan live photo secara paralel dengan backoff
   useEffect(() => {
-    let intervalId: any;
-    const run = async () => {
-      // Jika URL GIF publik sudah diberikan via query, tidak perlu polling
-      if (gifUrl) return;
+    if (!imageId) return;
 
-      // PASTIKAN DATA SIAP: Tunggu dbFrame jika kategori adalah database
-      if (frameCategory === 'database' && !dbFrame) {
-        console.log('Waiting for dbFrame before checking bonus...');
-        return;
-      }
+    let cancelled = false;
+    const origin = window.location.origin;
 
-      if (imageId) {
-        const endpoint = `${window.location.origin}/api/images/${imageId}-bonus`;
+    const pollBonus = async () => {
+      if (queryUg) return;
+      if (frameCategory === 'database' && !dbFrame) return;
 
-        // FUNGSI CEK SERVER
-        const checkServer = async () => {
-          try {
-            const res = await fetch(`${endpoint}?v=${Date.now()}`, {
-              method: 'GET',
-              cache: 'no-store',
-              redirect: 'follow',
-              headers: {
-                'Accept': 'video/mp4,video/webm,image/gif,video/*,*/*',
-                'Cache-Control': 'no-cache'
-              }
-            });
-            if (res.ok) {
-              setGifUrl(res.url);
-              return true;
-            }
-          } catch (err) { }
-          return false;
-        };
-
-        // 1. Cek dulu apakah server sudah punya bonus (dikirim dari FinalResultPage)
-        const exists = await checkServer();
-        if (exists) {
-          console.log('Bonus found on server, skipping local generation.');
-          return;
-        }
-
-        // 2. Jika belum ada di server, selalu polling. Jangan generate lokal karena akan menghasilkan GIF >5MB
-        // yang dapat memicu error 413 (Payload Too Large) dan memblokir UI.
-        // Biarkan mesin (FinalResultPage) yang menangani MP4 kecil secara efisien.
-
-        // 3. Jika tidak ada di server dan tidak ada foto lokal (dibuka lewat QR), lakukan polling
-        console.log('Polling for bonus from server...');
-        let tries = 0;
-        const maxTries = 60; // 12 detik
-        const interval = 200;
-
-        intervalId = setInterval(async () => {
-          tries++;
-          const found = await checkServer();
-          if (found || tries >= maxTries) {
-            clearInterval(intervalId);
+      await pollUntilReady(
+        async () => {
+          if (cancelled || queryUg) return true;
+          const url = await probeAssetReady(`${origin}/api/images/${imageId}-bonus`);
+          if (url) {
+            setGifUrl(url);
+            return true;
           }
-        }, interval);
+          return false;
+        },
+        { maxAttempts: 24, initialDelayMs: 400, maxDelayMs: 2000 },
+      );
+    };
+
+    const pollLive = async () => {
+      if (queryUl) return;
+
+      const found = await pollUntilReady(
+        async () => {
+          if (cancelled || queryUl) return true;
+          const url = await probeAssetReady(`${origin}/api/images/${imageId}-live`);
+          if (url) {
+            setLivePhotoUrl(url);
+            return true;
+          }
+          return false;
+        },
+        { maxAttempts: 48, initialDelayMs: 500, maxDelayMs: 2500 },
+      );
+
+      if (!found && !cancelled && photos.filter((p) => !!p.livePhotoUrl).length > 0) {
+        console.log('Generating Live Photo locally as fallback...');
+        void generateLivePhotoVideo();
       }
     };
-    run();
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [imageId, gifUrl, photos.length, dbFrame, selectedFrame, frameCategory]);
-  // Depend on imageId instead of imageUrl untuk mulai lebih awal
 
-  // Fetch Live Photo dari server
-  useEffect(() => {
-    if (!imageId || livePhotoUrl) return;
-
-        const checkLivePhoto = async () => {
-          try {
-            const endpoint = `${window.location.origin}/api/images/${imageId}-live`;
-            const res = await fetch(`${endpoint}?v=${Date.now()}`, {
-              method: 'GET',
-              cache: 'no-store',
-              redirect: 'follow', // Follow redirect to get final Supabase/Blob URL
-              headers: {
-                'Accept': 'video/webm,video/mp4,video/*,*/*',
-                'Cache-Control': 'no-cache'
-              }
-            });
-            if (res.ok) {
-              console.log('✅ Live Photo found on server');
-              // Gunakan res.url jika itu adalah URL final (Supabase/Vercel Blob)
-              // URL final biasanya lebih stabil untuk tag <video> daripada melalui API route
-              setLivePhotoUrl(res.url);
-              return true;
-            }
-          } catch (err) { }
-          return false;
-        };
-
-    // Cek awal segera
-    checkLivePhoto().then(found => {
-      if (found) return;
-
-      // Polling untuk Live Photo (60 detik agar sinkron dengan upload dari mesin photobooth)
-      let tries = 0;
-      const maxTries = 120; // 60 detik (120 * 500ms)
-      const interval = 500;
-
-      const intervalId = setInterval(async () => {
-        tries++;
-        const found = await checkLivePhoto();
-        if (found || tries >= maxTries) {
-          clearInterval(intervalId);
-          if (!found && tries >= maxTries) {
-            console.log('⚠️ Live Photo not found on server after 60s');
-            // Jika di mesin photobooth (punya data foto), coba generate lokal
-            if (photos.filter(p => !!p.livePhotoUrl).length > 0) {
-              console.log('Generating Live Photo locally as fallback...');
-              generateLivePhotoVideo();
-            }
-          }
-        }
-      }, interval);
-
-      // Cleanup interval on unmount
-      const cleanup = () => clearInterval(intervalId);
-      (window as any).__livePhotoCleanup = cleanup;
-    });
+    void Promise.all([pollBonus(), pollLive()]);
 
     return () => {
-      if ((window as any).__livePhotoCleanup) {
-        (window as any).__livePhotoCleanup();
-        delete (window as any).__livePhotoCleanup;
-      }
+      cancelled = true;
     };
-  }, [imageId, livePhotoUrl]);
+  }, [imageId, queryUg, queryUl, dbFrame, frameCategory, photos]);
 
 
   const handleDownload = async () => {
@@ -625,6 +528,7 @@ const DownloadPageClient = () => {
 
       const fullW = layoutConfig.outputWidth;
       const fullH = layoutConfig.outputHeight;
+      const { getVideoEncodeDimensions } = await loadMobileMp4();
       const { width: W, height: H } = getVideoEncodeDimensions(fullW, fullH, 720);
       const canvas = bonusCanvasRef.current || document.createElement('canvas');
       canvas.width = W;
@@ -651,7 +555,7 @@ const DownloadPageClient = () => {
       const boxes = slotBoxes ?? greenBoxes;
 
       const workerUrl = `${window.location.origin}/api/gif-worker`;
-      const gif = new GIF({
+      const gif = await createGifEncoder({
         workers: 2,
         quality: 18,
         width: W,
@@ -746,6 +650,12 @@ const DownloadPageClient = () => {
   // Jika foto masih ada di store, generate MP4 langsung dari foto (lebih baik)
   // Jika tidak, konversi GIF yang sudah ada
   const convertGifToMp4 = async (gifBlob: Blob): Promise<Blob> => {
+    const {
+      encodeCanvasToMobileMp4,
+      ensureMobileMp4,
+      VIDEO_BUDGET_MAX_BYTES,
+    } = await loadMobileMp4();
+
     if (photos.length >= 4) {
       try {
         const W = layoutConfig.outputWidth;
@@ -854,6 +764,8 @@ const DownloadPageClient = () => {
     setLivePhotoError('');
 
     try {
+      const { encodeCanvasToMobileMp4, ensureMobileMp4, VIDEO_BUDGET_MAX_BYTES } = await loadMobileMp4();
+
       const canvas = livePhotoCanvasRef.current;
       if (!canvas) throw new Error('Canvas not found');
 
@@ -996,6 +908,8 @@ const DownloadPageClient = () => {
 
     setIsDownloadingGif(true);
     try {
+      const { ensureMobileMp4, isMobileCompatibleMp4 } = await loadMobileMp4();
+
       // Selalu fetch sebagai blob agar tidak membuka tab baru (Direct Save)
       const urlWithCacheBuster = gifUrl.includes('?')
         ? `${gifUrl}&v=${Date.now()}`
@@ -1059,6 +973,8 @@ const DownloadPageClient = () => {
 
     setIsDownloadingLivePhoto(true);
     try {
+      const { ensureMobileMp4 } = await loadMobileMp4();
+
       const response = await fetch(livePhotoUrl);
       if (!response.ok) throw new Error('Failed to fetch video');
 

@@ -1,12 +1,13 @@
 'use client';
 
-import { ReactNode, useState, useEffect, useCallback } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSession, signOut } from 'next-auth/react';
 import { ShieldAlert, LogOut } from 'lucide-react';
 import Sidebar from '@/components/admin/Sidebar';
 import MobileHeader from '@/components/admin/MobileHeader';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -16,10 +17,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const pathname = usePathname();
     const router = useRouter();
     const { data: session, status } = useSession();
+    const { userProfile, isAccountDeleted } = useAdminProfile();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsedState] = useState(false);
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [isAccountDeleted, setIsAccountDeleted] = useState(false);
     const [isSigningOut, setIsSigningOut] = useState(false);
 
     useEffect(() => {
@@ -37,44 +37,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             localStorage.setItem('admin.sidebarCollapsed', String(collapsed));
         }
     };
-
-    const fetchProfile = useCallback(async () => {
-        // Don't fetch if we already know the account is deleted
-        if (isAccountDeleted) return;
-
-        try {
-            const res = await fetch('/api/admin/profile');
-
-            if (res.status === 404) {
-                // Account has been deleted by admin
-                setIsAccountDeleted(true);
-                return;
-            }
-
-            if (res.ok) {
-                const data = await res.json();
-                setUserProfile(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    }, [isAccountDeleted]);
-
-    useEffect(() => {
-        if (status === 'authenticated') {
-            fetchProfile();
-            
-            // Poll every 30 seconds for responsive switching
-            // Added visibility check to prevent excessive requests when tab is inactive
-            const interval = setInterval(() => {
-                if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-                    fetchProfile();
-                }
-            }, 30000);
-            
-            return () => clearInterval(interval);
-        }
-    }, [status, fetchProfile]);
 
     const handleAccountDeletedSignOut = async () => {
         setIsSigningOut(true);

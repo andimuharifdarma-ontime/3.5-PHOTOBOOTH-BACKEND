@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Layers, Image as ImageIcon, Eye, ChevronRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import AdminThumbImage from '@/components/ui/AdminThumbImage';
 
 interface Theme {
     id: string;
@@ -45,10 +46,10 @@ export default function ThemeCard({
             {/* Preview Image */}
             <div className="aspect-[4/5] bg-[#F5F1EA] relative overflow-hidden">
                 {theme.previewUrl ? (
-                    <img
+                    <AdminThumbImage
                         src={theme.previewUrl}
                         alt={theme.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700 ease-out"
+                        className="object-cover group-hover:scale-105 transition-all duration-700 ease-out"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#FDFBF7] to-[#F5F1EA]">

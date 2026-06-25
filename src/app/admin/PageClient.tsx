@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -22,6 +23,7 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 
@@ -29,31 +31,34 @@ import { toast } from 'react-hot-toast';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import StatCard from '@/components/admin/dashboard/StatCard';
 import CircularProgress from '@/components/admin/dashboard/CircularProgress';
+import type { DashboardStats } from '@/lib/admin-stats';
 
-interface DashboardStats {
-    totalThemes: number;
-    totalFrames: number;
-    totalOrders: number;
-    totalRevenue: number;
-    totalPrints: number;
-    pendingOrders: number;
-    monthlyRevenue: { month: string; revenue: number }[];
+const EMPTY_STATS: DashboardStats = {
+    totalThemes: 0,
+    totalFrames: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    totalPrints: 0,
+    pendingOrders: 0,
+    monthlyRevenue: [],
+};
+
+interface AdminDashboardProps {
+    initialStats?: DashboardStats | null;
 }
 
-export default function AdminDashboard() {
-    const [stats, setStats] = useState<DashboardStats>({
-        totalThemes: 0,
-        totalFrames: 0,
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalPrints: 0,
-        pendingOrders: 0,
-        monthlyRevenue: [],
-    });
-    const [loading, setLoading] = useState(true);
-    const { data: session } = useSession();
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [users, setUsers] = useState<any[]>([]);
+export default function AdminDashboard({ initialStats = null }: AdminDashboardProps) {
+    const { data: session, status } = useSession();
+    const { userProfile } = useAdminProfile();
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    const statsKey = status === 'authenticated' ? '/api/admin/stats?startDate=&endDate=' : null;
+    const usersKey = status === 'authenticated' && isAdmin ? '/api/admin/users' : null;
+
+    const { data: stats = initialStats ?? EMPTY_STATS, isLoading: statsLoading } = useSWR<DashboardStats>(
+        statsKey,
+        { fallbackData: initialStats ?? undefined },
+    );
+    const { data: users = [] } = useSWR<any[]>(usersKey);
     
     // Activation Modal State
     const searchParams = useSearchParams();
@@ -65,31 +70,17 @@ export default function AdminDashboard() {
     const isNonPaymentClient = (session?.user as any)?.role === 'CLIENT' && userProfile?.isPaymentEnabled === false;
 
     useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const res = await fetch('/api/admin/profile');
-                if (res.ok) {
-                    const data = await res.json();
-                    setUserProfile(data);
-                }
-            } catch (error) {
-                console.error('Failed to fetch profile:', error);
-            }
-        };
-        fetchProfile();
-    }, [session]);
-
-    useEffect(() => {
         const mode = searchParams.get('mode');
         if (mode === 'activation') {
             setShowActivationModal(true);
-            // Fetch current lock status
             fetch('/api/admin/settings')
                 .then(res => res.json())
                 .then(data => setIsKioskLocked(data.isKioskLocked))
                 .catch(() => {});
         }
     }, [searchParams]);
+
+    const loading = status === 'loading' || (statsLoading && !initialStats);
 
     const handleActivate = async () => {
         setIsActivating(true);
@@ -116,42 +107,6 @@ export default function AdminDashboard() {
             toast.error('Gagal mengaktifkan kiosk');
         } finally {
             setIsActivating(false);
-        }
-    };
-
-    useEffect(() => {
-        // Fetch overall stats instead of just today for the main dashboard cards
-        fetchStats(''); 
-        
-        // Fetch all users if admin
-        if ((session?.user as any)?.role === 'ADMIN') {
-            fetchUsers();
-        }
-    }, [session]);
-
-    const fetchUsers = async () => {
-        try {
-            const res = await fetch('/api/admin/users');
-            if (res.ok) {
-                const data = await res.json();
-                setUsers(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch users:', error);
-        }
-    };
-
-    const fetchStats = async (date: string) => {
-        try {
-            const res = await fetch(`/api/admin/stats?startDate=${date}&endDate=${date}`);
-            if (res.ok) {
-                const data = await res.json();
-                setStats(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch stats:', error);
-        } finally {
-            setLoading(false);
         }
     };
 

@@ -4,6 +4,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { generateDokuSignature } from '@/lib/doku';
 import * as crypto from 'crypto';
+import {
+    buildReportsWhereClause,
+    formatReportTransaction,
+    parseReportsPagination,
+} from '@/lib/reports-query';
 
 export async function GET(request: Request) {
     try {
@@ -12,115 +17,69 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const user = session.user as any;
-        const userRole = user.role;
-        const sessionUserName = user.name;
-
+        const user = session.user as { role?: string; email?: string; name?: string };
         const { searchParams } = new URL(request.url);
-        const startDateStr = searchParams.get('startDate');
-        const endDateStr = searchParams.get('endDate');
-        const userNameParam = searchParams.get('userName');
+        const exportAll = searchParams.get('exportAll') === '1';
+        const { page, limit, skip } = parseReportsPagination(searchParams);
+        const take = exportAll ? Math.min(5000, Math.max(1, parseInt(searchParams.get('limit') || '5000', 10))) : limit;
+        const effectiveSkip = exportAll ? 0 : skip;
 
-        let whereClause: any = {};
+        const whereClause = await buildReportsWhereClause(
+            {
+                userRole: user.role ?? '',
+                userEmail: user.email ?? '',
+                sessionUserName: user.name,
+                userNameParam: searchParams.get('userName'),
+                startDateStr: searchParams.get('startDate'),
+                endDateStr: searchParams.get('endDate'),
+                search: searchParams.get('search') ?? undefined,
+            },
+            prisma,
+        );
 
-        // Security: Clients can ONLY see their own reports
-        if (userRole === 'CLIENT') {
-            const client = await prisma.adminUser.findUnique({
-                where: { email: user.email },
-                select: { id: true, name: true }
-            });
-            if (client) {
-                whereClause.OR = [
-                    { adminUserId: client.id },
-                    { userName: client.name || '' }
-                ];
-            } else {
-                whereClause.userName = sessionUserName; // Fallback
-            }
-        }
-        // Admin/Karyawan can see all or filter by specific user
-        else if ((userRole === 'ADMIN' || userRole === 'KARYAWAN') && userNameParam) {
-            // Find the client with this name to include their adminUserId in search for more robust data retrieval
-            // This fixes the issue where Admin sees 0 data if orders were linked via ID but have different userName
-            const targetClient = await prisma.adminUser.findFirst({
-                where: { name: userNameParam, role: 'CLIENT' },
-                select: { id: true }
-            });
+        const finishedWhere = {
+            ...whereClause,
+            paymentStatus: { in: ['paid', 'printed'] as string[] },
+        };
 
-            if (targetClient) {
-                whereClause.OR = [
-                    { adminUserId: targetClient.id },
-                    { userName: userNameParam }
-                ];
-            } else {
-                whereClause.userName = userNameParam;
-            }
-        }
+        const [total, orders, revenueAgg, costRows, topFrameGroups] = await Promise.all([
+            prisma.printOrder.count({ where: whereClause }),
+            prisma.printOrder.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                skip: effectiveSkip,
+                take,
+            }),
+            prisma.printOrder.aggregate({
+                where: finishedWhere,
+                _sum: { totalPrice: true },
+            }),
+            prisma.printOrder.findMany({
+                where: finishedWhere,
+                select: { quantity: true, costPrice: true },
+            }),
+            prisma.printOrder.groupBy({
+                by: ['frameId', 'frameName'],
+                where: finishedWhere,
+                _sum: { quantity: true, totalPrice: true },
+                orderBy: { _sum: { quantity: 'desc' } },
+                take: 5,
+            }),
+        ]);
 
-        if (startDateStr && endDateStr) {
-            whereClause.createdAt = {
-                gte: new Date(new Date(startDateStr).setHours(0, 0, 0, 0)),
-                lte: new Date(new Date(endDateStr).setHours(23, 59, 59, 999)),
-            };
-        } else if (startDateStr) {
-            const date = new Date(startDateStr);
-            whereClause.createdAt = {
-                gte: new Date(date.setHours(0, 0, 0, 0)),
-                lte: new Date(date.setHours(23, 59, 59, 999)),
-            };
-        }
+        const totalRevenue = revenueAgg._sum.totalPrice ?? 0;
+        const totalEstimatedCost = costRows.reduce(
+            (sum, order) => sum + order.quantity * (order.costPrice || 2500),
+            0,
+        );
 
-        const orders = await prisma.printOrder.findMany({
-            where: whereClause,
-            orderBy: { createdAt: 'desc' },
-        });
+        const formattedTransactions = orders.map(formatReportTransaction);
 
-        // 1. Transaction Detail & Financial Analysis
-        // Assumptions:
-        // Operational Cost per print (Paper/Ink/Electric): Rp 2,500 (can be adjusted)
-        const OPERATIONAL_COST_PER_PRINT = 2500;
-
-        let totalRevenue = 0;
-        let totalEstimatedCost = 0;
-        const frameStats: Record<string, { count: number; revenue: number; name: string }> = {};
-
-        const formattedTransactions = orders.map(order => {
-            const isFinished = order.paymentStatus === 'paid' || order.paymentStatus === 'printed';
-            const revenue = isFinished ? order.totalPrice : 0;
-            const cost = isFinished ? order.quantity * (order.costPrice || 2500) : 0;
-            const profit = revenue - cost;
-
-            if (isFinished) {
-                totalRevenue += revenue;
-                totalEstimatedCost += cost;
-
-                // Analytics for most popular frame
-                if (!frameStats[order.frameId]) {
-                    frameStats[order.frameId] = { count: 0, revenue: 0, name: order.frameName };
-                }
-                frameStats[order.frameId].count += order.quantity;
-                frameStats[order.frameId].revenue += order.totalPrice;
-            }
-
-            return {
-                id: order.id,
-                user: order.userName,
-                frame: order.frameName,
-                quantity: order.quantity,
-                price: order.totalPrice,
-                costPrice: order.costPrice || 2500,
-                date: order.createdAt,
-                status: order.paymentStatus,
-                revenue,
-                cost,
-                profit
-            };
-        });
-
-        // 2. Most Popular Frames Analysis
-        const topFrames = Object.values(frameStats)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
+        const topFrames = topFrameGroups.map((group) => ({
+            name: group.frameName,
+            count: group._sum.quantity ?? 0,
+            revenue: group._sum.totalPrice ?? 0,
+        }));
 
         return NextResponse.json({
             transactions: formattedTransactions,
@@ -129,10 +88,17 @@ export async function GET(request: Request) {
                 totalRevenue,
                 totalEstimatedCost,
                 totalProfit: totalRevenue - totalEstimatedCost,
-                margin: totalRevenue > 0 ? ((totalRevenue - totalEstimatedCost) / totalRevenue) * 100 : 0
-            }
+                margin: totalRevenue > 0 ? ((totalRevenue - totalEstimatedCost) / totalRevenue) * 100 : 0,
+            },
+            pagination: exportAll
+                ? { page: 1, limit: take, total, totalPages: 1 }
+                : {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.max(1, Math.ceil(total / limit)),
+                },
         });
-
     } catch (error) {
         console.error('Failed to fetch reports:', error);
         return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });

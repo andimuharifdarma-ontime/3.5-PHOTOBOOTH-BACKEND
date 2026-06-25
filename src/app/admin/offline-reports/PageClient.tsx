@@ -21,6 +21,7 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { useSession } from 'next-auth/react';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
 
 // Components
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
@@ -66,7 +67,7 @@ export default function OfflineReportsPage() {
     const itemsPerPage = 10;
 
     const { data: session } = useSession();
-    const [userProfile, setUserProfile] = useState<any>(null);
+    const { userProfile, profileLoaded } = useAdminProfile();
     const isAdminOrKaryawan = (session?.user as any)?.role === 'ADMIN' || (session?.user as any)?.role === 'KARYAWAN' || userProfile?.role === 'ADMIN' || userProfile?.role === 'KARYAWAN';
 
     // New State for Admin View
@@ -87,44 +88,25 @@ export default function OfflineReportsPage() {
     const isAdmin = (session?.user as any)?.role === 'ADMIN' || userProfile?.role === 'ADMIN';
 
     useEffect(() => {
-        fetchProfile();
-    }, [session]);
+        if (!profileLoaded && !session?.user) return;
 
-    useEffect(() => {
-        if (userProfile || session?.user) {
-            const role = userProfile?.role || (session?.user as any)?.role;
-            if (role === 'CLIENT') {
-                setViewMode('detail');
-                fetchOfflineReports(startDate, endDate);
-            } else if (role === 'ADMIN' || role === 'KARYAWAN') {
-                setViewMode('list');
-                fetchUsers();
-            }
+        const role = userProfile?.role || (session?.user as any)?.role;
+        if (role === 'CLIENT' && userProfile) {
+            setSelectedUser({
+                id: userProfile.id,
+                name: userProfile.name,
+                email: userProfile.email,
+                role: userProfile.role,
+                isPaymentEnabled: userProfile.isPaymentEnabled,
+                createdAt: userProfile.createdAt,
+            });
+            setViewMode('detail');
+            void fetchOfflineReports(startDate, endDate);
+        } else if (role === 'ADMIN' || role === 'KARYAWAN') {
+            setViewMode('list');
+            void fetchUsers();
         }
-    }, [userProfile, session]);
-
-    const fetchProfile = async () => {
-        try {
-            const res = await fetch('/api/admin/profile');
-            if (res.ok) {
-                const profileData = await res.json();
-                setUserProfile(profileData);
-                if (profileData.role === 'CLIENT') {
-                    // Set selectedUser for Client to maintain UI consistency
-                    setSelectedUser({
-                        id: profileData.id,
-                        name: profileData.name,
-                        email: profileData.email,
-                        role: profileData.role,
-                        isPaymentEnabled: profileData.isPaymentEnabled,
-                        createdAt: profileData.createdAt
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    };
+    }, [userProfile, session, profileLoaded]);
 
     const fetchUsers = async () => {
         setLoading(true);

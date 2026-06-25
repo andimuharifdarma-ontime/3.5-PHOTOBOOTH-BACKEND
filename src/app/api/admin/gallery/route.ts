@@ -22,23 +22,38 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        const { searchParams } = new URL(request.url);
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+        const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '24', 10)));
+        const search = (searchParams.get('search') || '').trim();
+        const skip = (page - 1) * limit;
+
         const isAdmin = user.role === 'ADMIN';
+        const whereClause: any = isAdmin ? {} : { adminUserId: user.id };
 
-        // Admin sees all, client sees only their own
-        const whereClause = isAdmin ? {} : { adminUserId: user.id };
+        if (search) {
+            whereClause.OR = [
+                { userName: { contains: search, mode: 'insensitive' } },
+                { frameName: { contains: search, mode: 'insensitive' } },
+            ];
+        }
 
-        const orders = await prisma.printOrder.findMany({
-            where: whereClause,
-            orderBy: { createdAt: 'desc' },
-            take: 200, // Reasonable limit
-            select: {
-                id: true,
-                userName: true,
-                frameName: true,
-                imageUrl: true,
-                createdAt: true,
-            }
-        });
+        const [total, orders] = await Promise.all([
+            prisma.printOrder.count({ where: whereClause }),
+            prisma.printOrder.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                select: {
+                    id: true,
+                    userName: true,
+                    frameName: true,
+                    imageUrl: true,
+                    createdAt: true,
+                }
+            }),
+        ]);
 
         const galleryItems = orders.map(order => {
             const sessionId = extractSessionIdFromImageUrl(order.imageUrl, order.id);
@@ -53,7 +68,14 @@ export async function GET(request: Request) {
             };
         }).filter(item => item.sessionId);
 
-        return NextResponse.json({ success: true, items: galleryItems });
+        return NextResponse.json({
+            success: true,
+            items: galleryItems,
+            total,
+            page,
+            limit,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+        });
 
     } catch (error) {
         console.error('Error fetching gallery:', error);

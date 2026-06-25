@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Helper: get the current client's adminUser ID from session
 async function getClientId(session: any): Promise<string | null> {
     const user = session?.user as any;
     if (!user?.email) return null;
@@ -14,8 +13,14 @@ async function getClientId(session: any): Promise<string | null> {
     return client?.id || null;
 }
 
+function parsePagination(searchParams: URLSearchParams) {
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25', 10)));
+    return { page, limit, skip: (page - 1) * limit };
+}
+
 // GET all orders — strictly scoped per client
-export async function GET() {
+export async function GET(request: Request) {
     try {
         const session = await getServerSession(authOptions);
         if (!session) {
@@ -24,21 +29,32 @@ export async function GET() {
 
         const user = session.user as any;
         const userRole = user.role;
+        const { searchParams } = new URL(request.url);
+        const { page, limit, skip } = parsePagination(searchParams);
+        const status = searchParams.get('status') || 'all';
+        const search = (searchParams.get('search') || '').trim();
 
         let whereClause: any = {};
         if (userRole !== 'ADMIN') {
-            // CLIENT / KARYAWAN: only see orders that belong to their own adminUserId
             const clientId = await getClientId(session);
             if (clientId) {
                 whereClause.adminUserId = clientId;
             } else {
-                // No matching client found — return empty
                 whereClause.adminUserId = 'none';
             }
         }
-        // ADMIN sees all orders (whereClause stays {})
 
-        // Auto-update orders older than 1 hour and still 'paid' → mark as 'printed'
+        if (status !== 'all') {
+            whereClause.paymentStatus = status;
+        }
+
+        if (search) {
+            whereClause.OR = [
+                { userName: { contains: search, mode: 'insensitive' } },
+                { frameName: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
         const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
 
         await prisma.printOrder.updateMany({
@@ -53,11 +69,23 @@ export async function GET() {
             }
         });
 
-        const orders = await prisma.printOrder.findMany({
-            where: whereClause,
-            orderBy: { createdAt: 'desc' },
+        const [total, orders] = await Promise.all([
+            prisma.printOrder.count({ where: whereClause }),
+            prisma.printOrder.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+            }),
+        ]);
+
+        return NextResponse.json({
+            orders,
+            total,
+            page,
+            limit,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
         });
-        return NextResponse.json(orders);
     } catch (error) {
         console.error('Failed to fetch orders:', error);
         return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
@@ -85,7 +113,7 @@ export async function POST(request: Request) {
         const order = await prisma.printOrder.create({
             data: {
                 userName,
-                adminUserId: clientId, // ← always attach the owning client
+                adminUserId: clientId,
                 frameId,
                 frameName,
                 quantity,
@@ -121,13 +149,11 @@ export async function DELETE(request: Request) {
         const deleteAll = searchParams.get('all') === 'true';
 
         if (deleteAll) {
-            // Delete ALL print orders
             const result = await prisma.printOrder.deleteMany({});
             return NextResponse.json({ message: `Deleted ${result.count} orders`, count: result.count });
         }
 
         if (orderId) {
-            // Delete single order
             await prisma.printOrder.delete({ where: { id: orderId } });
             return NextResponse.json({ message: 'Order deleted' });
         }
@@ -138,4 +164,3 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Failed to delete order(s)' }, { status: 500 });
     }
 }
-

@@ -20,6 +20,7 @@ import {
 import { useSession } from 'next-auth/react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ALL_ARTISTIC_FILTERS as ALL_FILTERS, applyFilterToImage as applyFilter } from '@/lib/filters';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 interface SystemSettings {
     enabledFilters: string[];
@@ -29,8 +30,8 @@ interface SystemSettings {
 
 export default function FiltersManagementPage() {
     const { data: session } = useSession();
+    const { data: swrSettings, isLoading, mutate } = useAdminSettings();
     const [settings, setSettings] = useState<SystemSettings | null>(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -95,24 +96,12 @@ export default function FiltersManagementPage() {
     const isAdminOrKaryawan = (session?.user as any)?.role === 'ADMIN' || (session?.user as any)?.role === 'KARYAWAN';
 
     useEffect(() => {
-        fetchSettings();
-    }, []);
-
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch('/api/admin/settings', { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                setSettings({
-                    enabledFilters: data.enabledFilters || ALL_FILTERS.map(f => f.id)
-                });
-            }
-        } catch (error) {
-            console.error('Failed to fetch settings:', error);
-        } finally {
-            setLoading(false);
+        if (swrSettings) {
+            setSettings({
+                enabledFilters: (swrSettings.enabledFilters as string[]) || ALL_FILTERS.map(f => f.id),
+            });
         }
-    };
+    }, [swrSettings]);
 
     const handleToggleFilter = (filterId: string) => {
         if (!settings) return;
@@ -141,6 +130,7 @@ export default function FiltersManagementPage() {
 
             if (res.ok) {
                 setMessage({ type: 'success', text: 'Konfigurasi filter berhasil disimpan!' });
+                void mutate();
                 setTimeout(() => setMessage(null), 3000);
             } else {
                 setMessage({ type: 'error', text: 'Gagal menyimpan perubahan.' });
@@ -152,7 +142,7 @@ export default function FiltersManagementPage() {
         }
     };
 
-    if (loading) return <LoadingScreen message="Menyiapkan Palet Warna..." />;
+    if (isLoading && !settings) return <LoadingScreen message="Menyiapkan Palet Warna..." />;
 
     return (
         <div className="max-w-6xl space-y-12 pb-20">

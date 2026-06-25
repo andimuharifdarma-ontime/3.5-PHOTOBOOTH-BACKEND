@@ -10,19 +10,29 @@ interface Params {
     params: Promise<{ id: string }>;
 }
 
-function isMissingOriginalImageUrlColumn(error: unknown): boolean {
+function isMissingOptionalFrameColumn(error: unknown, column: string): boolean {
     const message = error instanceof Error ? error.message : String(error);
-    return message.includes('originalImageUrl') || message.includes('column') && message.includes('Frame');
+    return message.includes(column) || (message.includes('column') && message.includes('Frame'));
 }
 
 function buildFrameUpdateData(
     body: Record<string, unknown>,
-    includeOriginalImageUrl: boolean,
+    options: {
+        includeOriginalImageUrl?: boolean;
+        includeChromaKeySettings?: boolean;
+    } = {},
 ): Prisma.FrameUpdateInput {
+    const {
+        includeOriginalImageUrl = true,
+        includeChromaKeySettings = true,
+    } = options;
+
     const {
         name,
         imageUrl,
         originalImageUrl,
+        chromaKeyColor,
+        chromaKeyTolerance,
         previewUrl,
         price,
         outputWidth,
@@ -41,6 +51,14 @@ function buildFrameUpdateData(
     if (includeOriginalImageUrl && originalImageUrl !== undefined) {
         data.originalImageUrl =
             originalImageUrl === null ? null : String(originalImageUrl);
+    }
+    if (includeChromaKeySettings && chromaKeyColor !== undefined) {
+        data.chromaKeyColor =
+            chromaKeyColor === null ? null : String(chromaKeyColor);
+    }
+    if (includeChromaKeySettings && chromaKeyTolerance !== undefined) {
+        data.chromaKeyTolerance =
+            chromaKeyTolerance === null ? null : Number(chromaKeyTolerance);
     }
     if (previewUrl !== undefined) data.previewUrl = previewUrl as string;
     if (price !== undefined) data.price = Number(price);
@@ -98,19 +116,36 @@ export async function PUT(request: Request, { params }: Params) {
         const body = await request.json();
 
         let frame;
-        let originalImageUrlSkipped = false;
+        let skippedColumns: string[] = [];
+
+        const updateOptions = {
+            includeOriginalImageUrl: true,
+            includeChromaKeySettings: true,
+        };
 
         try {
             frame = await prisma.frame.update({
                 where: { id },
-                data: buildFrameUpdateData(body, true),
+                data: buildFrameUpdateData(body, updateOptions),
             });
         } catch (updateError) {
-            if (body.originalImageUrl !== undefined && isMissingOriginalImageUrlColumn(updateError)) {
-                originalImageUrlSkipped = true;
+            if (body.originalImageUrl !== undefined && isMissingOptionalFrameColumn(updateError, 'originalImageUrl')) {
+                updateOptions.includeOriginalImageUrl = false;
+                skippedColumns.push('originalImageUrl');
+            }
+            if (
+                (body.chromaKeyColor !== undefined || body.chromaKeyTolerance !== undefined) &&
+                (isMissingOptionalFrameColumn(updateError, 'chromaKeyColor') ||
+                    isMissingOptionalFrameColumn(updateError, 'chromaKeyTolerance'))
+            ) {
+                updateOptions.includeChromaKeySettings = false;
+                skippedColumns.push('chromaKeyColor/chromaKeyTolerance');
+            }
+
+            if (skippedColumns.length > 0) {
                 frame = await prisma.frame.update({
                     where: { id },
-                    data: buildFrameUpdateData(body, false),
+                    data: buildFrameUpdateData(body, updateOptions),
                 });
             } else {
                 throw updateError;
@@ -125,8 +160,8 @@ export async function PUT(request: Request, { params }: Params) {
                 action: 'UPDATE',
                 resource: 'frame',
                 resourceId: id,
-                details: originalImageUrlSkipped
-                    ? `Updated frame "${frame.name}" (originalImageUrl skipped — run DB migration)`
+                details: skippedColumns.length > 0
+                    ? `Updated frame "${frame.name}" (${skippedColumns.join(', ')} skipped — run DB migration)`
                     : `Updated frame "${frame.name}"`,
             }, request);
         } catch (auditError) {
@@ -135,9 +170,9 @@ export async function PUT(request: Request, { params }: Params) {
 
         return NextResponse.json({
             ...frame,
-            ...(originalImageUrlSkipped && {
+            ...(skippedColumns.length > 0 && {
                 warning:
-                    'Kolom originalImageUrl belum ada di database. Frame tersimpan, tapi fitur Reset membutuhkan migration. Jalankan: npx prisma migrate deploy',
+                    'Beberapa kolom frame belum ada di database (originalImageUrl / chroma key). Jalankan: npx prisma migrate deploy',
             }),
         });
     } catch (error) {

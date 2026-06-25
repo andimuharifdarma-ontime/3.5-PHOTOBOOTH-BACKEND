@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { ArrowLeft, Plus, Edit, Trash2, Move, Image as ImageIcon, Upload, X, CreditCard, Banknote, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import AdminThumbImage from '@/components/ui/AdminThumbImage';
 import { FRAME_FORMAT_PRESETS } from '@/lib/frameFormats';
 
 
@@ -43,8 +45,7 @@ export default function ThemeFramesPage() {
     const router = useRouter();
     const themeId = params.themeId as string;
     const { data: session } = useSession();
-
-    const [theme, setTheme] = useState<Theme | null>(null);
+    const { userProfile } = useAdminProfile();
     const [loading, setLoading] = useState(true);
     const [isPaymentEnabled, setIsPaymentEnabled] = useState<boolean>(true);
     const [showModal, setShowModal] = useState(false);
@@ -66,38 +67,24 @@ export default function ThemeFramesPage() {
     const [isDeleting, setIsDeleting] = useState(false);
 
 
-    const [userProfile, setUserProfile] = useState<any>(null);
+    const [theme, setTheme] = useState<Theme | null>(null);
     const isAdmin = (session?.user as any)?.role === 'ADMIN' || userProfile?.role === 'ADMIN';
     const canManageThemes = isAdmin || (session?.user as any)?.canManageThemes === true || userProfile?.canManageThemes === true;
 
     useEffect(() => {
-        fetchTheme();
-        fetchProfile();
+        void fetchTheme();
 
-        // Auto-refresh settings every 30 seconds for live sync
         const interval = setInterval(() => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
             if (theme?.userName) {
-                fetchSettings(theme.userName);
+                void fetchSettings(theme.userName);
             } else {
-                fetchSettings();
+                void fetchSettings();
             }
-            fetchProfile();
-        }, 30000);
+        }, 60000);
 
         return () => clearInterval(interval);
     }, [themeId, theme?.userName]);
-
-    const fetchProfile = async () => {
-        try {
-            const res = await fetch('/api/admin/profile');
-            if (res.ok) {
-                const data = await res.json();
-                setUserProfile(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    };
 
     const fetchSettings = async (themeOwnerName?: string) => {
         const role = userProfile?.role || (session?.user as any)?.role;
@@ -327,10 +314,10 @@ export default function ThemeFramesPage() {
                     >
                         <div className="aspect-[3/4.5] bg-[#FDFBF7] relative overflow-hidden">
                             {frame.previewUrl ? (
-                                <img
+                                <AdminThumbImage
                                     src={frame.previewUrl}
                                     alt={frame.name}
-                                    className="w-full h-full object-contain sepia-[0.2] group-hover:sepia-0 transition-all duration-700"
+                                    className="object-contain sepia-[0.2] group-hover:sepia-0 transition-all duration-700"
                                 />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-[#D1C4B2]">

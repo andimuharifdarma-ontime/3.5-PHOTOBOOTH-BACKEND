@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { useSession } from 'next-auth/react';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import { toast } from 'react-hot-toast';
 
 // Components
@@ -29,6 +30,9 @@ import FinancialBlueprint from '@/components/admin/reports/FinancialBlueprint';
 import FilterSection from '@/components/admin/reports/FilterSection';
 import Modal from '@/components/ui/Modal';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import PaginationBar from '@/components/ui/PaginationBar';
+import { useAdminReports, useAdminUsers, buildReportsKey } from '@/hooks/useAdminSettings';
+import { jsonFetcher } from '@/lib/fetcher';
 
 interface Transaction {
     id: string;
@@ -61,6 +65,12 @@ interface ReportData {
     transactions: Transaction[];
     topFrames: TopFrame[];
     financialSummary: FinancialSummary;
+    pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
 }
 
 interface User {
@@ -74,9 +84,8 @@ interface User {
 }
 
 export default function ReportsPage() {
-    const [data, setData] = useState<ReportData | null>(null);
-    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -94,8 +103,7 @@ export default function ReportsPage() {
     const [isSyncing, setIsSyncing] = useState(false);
 
     const { data: session } = useSession();
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [users, setUsers] = useState<User[]>([]);
+    const { userProfile, profileLoaded } = useAdminProfile();
     const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
@@ -104,91 +112,68 @@ export default function ReportsPage() {
     const isAdmin = (session?.user as any)?.role === 'ADMIN' || userProfile?.role === 'ADMIN';
     const isKaryawan = (session?.user as any)?.role === 'KARYAWAN' || userProfile?.role === 'KARYAWAN';
 
-    const itemsPerPage = 8;
+    const itemsPerPage = 25;
+    const reportsEnabled = profileLoaded && (viewMode === 'detail' || isClient);
+    const reportUserName = isClient ? userProfile?.name : selectedUser?.name;
+
+    const { data: users = [], isLoading: usersLoading } = useAdminUsers(
+        profileLoaded && isAdminOrKaryawan && viewMode === 'list',
+    );
+
+    const { data, isLoading: reportsLoading, mutate: mutateReports } = useAdminReports(
+        {
+            startDate,
+            endDate,
+            userName: reportUserName,
+            search: debouncedSearch,
+            page: currentPage,
+            limit: itemsPerPage,
+        },
+        reportsEnabled,
+    );
 
     useEffect(() => {
-        fetchProfile();
-    }, [session]);
+        const timer = window.setTimeout(() => setDebouncedSearch(searchTerm), 300);
+        return () => window.clearTimeout(timer);
+    }, [searchTerm]);
 
     useEffect(() => {
-        if (userProfile || session?.user) {
-            const role = userProfile?.role || (session?.user as any)?.role;
-            if (role === 'CLIENT') {
-                setViewMode('detail');
-                fetchReports(startDate, endDate);
-            } else if (role === 'ADMIN' || role === 'KARYAWAN') {
-                setViewMode('list');
-                fetchUsers();
-            }
-        }
-    }, [userProfile, session]);
+        setCurrentPage(1);
+    }, [startDate, endDate, debouncedSearch, reportUserName]);
 
-    const fetchProfile = async () => {
-        try {
-            const res = await fetch('/api/admin/profile');
-            if (res.ok) {
-                const data = await res.json();
-                setUserProfile(data);
-                if (data.role === 'CLIENT') {
-                    // Safety check: if Doku is OFF for this client, redirect them away from the Income Report 
-                    if (!data.isPaymentEnabled) {
-                        window.location.href = '/admin';
-                        return;
-                    }
-                    
-                    setAppliedCapital(data.initialCapital || 0);
-                    setInitialCapitalInput((data.initialCapital || 0).toString());
-                    setSelectedUser({
-                        id: data.id,
-                        name: data.name,
-                        email: data.email,
-                        role: data.role,
-                        isPaymentEnabled: data.isPaymentEnabled,
-                        canInputCapital: data.canInputCapital,
-                        initialCapital: data.initialCapital,
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    };
+    useEffect(() => {
+        if (!profileLoaded || !userProfile) return;
 
-    const fetchUsers = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch('/api/admin/users');
-            if (res.ok) {
-                const data = await res.json();
-                setUsers(data);
+        if (userProfile.role === 'CLIENT') {
+            if (!userProfile.isPaymentEnabled) {
+                window.location.href = '/admin';
+                return;
             }
-        } catch (error) {
-            console.error('Failed to fetch users:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    const fetchReports = async (start = '', end = '', userName = '') => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            if (start) params.append('startDate', start);
-            if (end) params.append('endDate', end);
-            if (userName) params.append('userName', userName);
-
-            const url = `/api/admin/reports?${params.toString()}`;
-            const res = await fetch(url);
-            if (res.ok) {
-                const reportData = await res.json();
-                setData(reportData);
-            }
-        } catch (error) {
-            console.error('Failed to fetch reports:', error);
-        } finally {
-            setLoading(false);
+            setAppliedCapital(userProfile.initialCapital || 0);
+            setInitialCapitalInput((userProfile.initialCapital || 0).toString());
+            setSelectedUser({
+                id: userProfile.id,
+                name: userProfile.name,
+                email: userProfile.email,
+                role: userProfile.role,
+                isPaymentEnabled: userProfile.isPaymentEnabled,
+                canInputCapital: userProfile.canInputCapital,
+                initialCapital: userProfile.initialCapital,
+            });
         }
-    };
+    }, [userProfile, profileLoaded]);
+
+    useEffect(() => {
+        if (!profileLoaded && !session?.user) return;
+
+        const role = userProfile?.role || (session?.user as any)?.role;
+        if (role === 'CLIENT') {
+            setViewMode('detail');
+        } else if (role === 'ADMIN' || role === 'KARYAWAN') {
+            setViewMode('list');
+        }
+    }, [userProfile, session, profileLoaded]);
 
     const handleSyncPayments = async () => {
         setIsSyncing(true);
@@ -201,8 +186,7 @@ export default function ReportsPage() {
             if (res.ok) {
                 const result = await res.json();
                 toast.success(result.message || 'Sinkronisasi berhasil!', { id: myToast });
-                // Reload reports
-                fetchReports(startDate, endDate, selectedUser?.name || '');
+                void mutateReports();
             } else {
                 throw new Error();
             }
@@ -218,13 +202,13 @@ export default function ReportsPage() {
         setAppliedCapital(user.initialCapital || 0);
         setInitialCapitalInput((user.initialCapital || 0).toString());
         setViewMode('detail');
-        fetchReports(startDate, endDate, user.name);
+        setCurrentPage(1);
     };
 
     const handleBackToList = () => {
         setSelectedUser(null);
         setViewMode('list');
-        setData(null);
+        setCurrentPage(1);
     };
 
     const handleApplyCapital = async () => {
@@ -238,7 +222,6 @@ export default function ReportsPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ initialCapital: value })
                 });
-                setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, initialCapital: value } : u));
             } else if (isClient || isAdmin) {
                 await fetch('/api/admin/profile', {
                     method: 'PATCH',
@@ -259,7 +242,7 @@ export default function ReportsPage() {
                 body: JSON.stringify({ id, costPrice: costValue })
             });
             if (res.ok) {
-                await fetchReports(startDate, endDate, selectedUser?.name || '');
+                await mutateReports();
                 setEditingCostId(null);
             }
         } catch (error) {
@@ -267,10 +250,21 @@ export default function ReportsPage() {
         }
     };
 
-    const handleExportExcel = () => {
-        if (!data || data.transactions.length === 0) return;
+    const handleExportExcel = async () => {
+        if (!data) return;
 
-        const mainData = data.transactions.map(t => ({
+        try {
+            const exportKey = buildReportsKey({
+                startDate,
+                endDate,
+                userName: reportUserName,
+                search: debouncedSearch,
+                exportAll: true,
+            });
+            const exportData = await jsonFetcher<ReportData>(exportKey);
+            if (!exportData.transactions.length) return;
+
+            const mainData = exportData.transactions.map(t => ({
             'ID PESANAN': t.id,
             'NAMA PELANGGAN': t.user,
             'NAMA FRAME': t.frame,
@@ -283,7 +277,7 @@ export default function ReportsPage() {
 
         const wb = XLSX.utils.book_new();
         const wsMain = XLSX.utils.json_to_sheet(mainData);
-        const totalRevenue = data.transactions.reduce((sum, t) => sum + t.revenue, 0);
+        const totalRevenue = exportData.transactions.reduce((sum, t) => sum + t.revenue, 0);
 
         XLSX.utils.sheet_add_aoa(wsMain, [
             [],
@@ -294,6 +288,10 @@ export default function ReportsPage() {
 
         XLSX.utils.book_append_sheet(wb, wsMain, "Transaksi Terinci");
         XLSX.writeFile(wb, `DOVELENS-REPORT-${new Date().getTime()}.xlsx`);
+        } catch (error) {
+            console.error('Failed to export reports:', error);
+            toast.error('Gagal mengekspor laporan.');
+        }
     };
 
     const handleDelete = async (ids: string[], isAll = false) => {
@@ -306,7 +304,7 @@ export default function ReportsPage() {
             });
 
             if (res.ok) {
-                await fetchReports(startDate, endDate, selectedUser?.name || '');
+                await mutateReports();
                 setSelectedIds([]);
                 if (isAll) setCurrentPage(1);
                 setConfirmModal({ show: false, ids: [], isAll: false });
@@ -325,6 +323,8 @@ export default function ReportsPage() {
             minimumFractionDigits: 0
         }).format(price);
     };
+
+    const loading = (viewMode === 'list' && usersLoading) || (reportsEnabled && reportsLoading && !data);
 
     if (loading) return <LoadingScreen message="Menghitung Strategi..." />;
 
@@ -393,15 +393,9 @@ export default function ReportsPage() {
         );
     }
 
-    const filteredTransactions = data?.transactions.filter(t =>
-        t.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.frame.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || [];
-
-    const paginatedTransactions = filteredTransactions.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const transactions = (data?.transactions as Transaction[] | undefined) ?? [];
+    const pagination = data?.pagination;
+    const paginatedTransactions = transactions;
 
     return (
         <div className="space-y-8 pb-20">
@@ -456,7 +450,7 @@ export default function ReportsPage() {
                                 <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
                                 <span className="text-[11px] font-bold uppercase tracking-wider">Singkronkan Transaksi</span>
                             </button>
-                            <button onClick={handleExportExcel} disabled={!data || data.transactions.length === 0} className="bg-white/[0.06] backdrop-blur-md text-white/70 hover:text-white border border-white/10 px-8 py-3.5 rounded-xl shadow-sm hover:bg-white/10 transition-all flex items-center gap-3 disabled:opacity-50 hover:shadow-md">
+                            <button onClick={handleExportExcel} disabled={!data || (pagination?.total ?? 0) === 0} className="bg-white/[0.06] backdrop-blur-md text-white/70 hover:text-white border border-white/10 px-8 py-3.5 rounded-xl shadow-sm hover:bg-white/10 transition-all flex items-center gap-3 disabled:opacity-50 hover:shadow-md">
                                 <Download className="w-5 h-5" />
                                 <span className="text-[11px] font-bold uppercase tracking-wider">Ekspor Excel</span>
                             </button>
@@ -482,7 +476,7 @@ export default function ReportsPage() {
                 />
                 <StatCardSmall
                     title="Volume Transaksi"
-                    value={filteredTransactions.length}
+                    value={pagination?.total ?? 0}
                     icon={<ShoppingCart className="w-5 h-5" />}
                     subtitle="Aktivitas Reservasi"
                     variant="dark"
@@ -611,6 +605,15 @@ export default function ReportsPage() {
                     </tbody>
                 </table>
             </div>
+
+            {pagination && (
+                <PaginationBar
+                    page={pagination.page}
+                    totalPages={pagination.totalPages}
+                    totalItems={pagination.total}
+                    onPageChange={setCurrentPage}
+                />
+            )}
 
             <DeleteConfirmModal
                 isOpen={confirmModal.show}

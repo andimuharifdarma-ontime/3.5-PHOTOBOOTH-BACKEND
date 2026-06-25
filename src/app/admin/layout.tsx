@@ -1,4 +1,6 @@
 import AdminLayout from './components/AdminLayout';
+import { AdminProfileProvider } from '@/contexts/AdminProfileContext';
+import { SwrProvider } from '@/components/providers/SwrProvider';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -10,5 +12,11 @@ export default function AdminRootLayout({
 }: {
     children: React.ReactNode;
 }) {
-    return <AdminLayout>{children}</AdminLayout>;
+    return (
+        <SwrProvider>
+            <AdminProfileProvider>
+                <AdminLayout>{children}</AdminLayout>
+            </AdminProfileProvider>
+        </SwrProvider>
+    );
 }

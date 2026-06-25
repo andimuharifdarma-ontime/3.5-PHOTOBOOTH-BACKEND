@@ -9,6 +9,9 @@ import { useSession } from 'next-auth/react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import OrderRow from '@/components/admin/orders/OrderRow';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import PaginationBar from '@/components/ui/PaginationBar';
+import { useAdminProfile } from '@/contexts/AdminProfileContext';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 interface PrintOrder {
     id: string;
@@ -27,10 +30,15 @@ export default function OrdersPage() {
     const [orders, setOrders] = useState<PrintOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>('all');
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [isPaymentEnabled, setIsPaymentEnabled] = useState<boolean>(true);
+    const { data: settingsData } = useAdminSettings();
+    const isPaymentEnabled = settingsData?.isPaymentEnabled !== false;
     const { data: session } = useSession();
+    const { userProfile } = useAdminProfile();
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalOrders, setTotalOrders] = useState(0);
     const [isSyncing, setIsSyncing] = useState(false);
     const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
     const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
@@ -39,41 +47,33 @@ export default function OrdersPage() {
     const isAdmin = (session?.user as any)?.role === 'ADMIN' || userProfile?.role === 'ADMIN';
 
     useEffect(() => {
-        fetchOrders();
-        fetchProfile();
-        fetchSettings();
-    }, []);
+        const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
+        return () => window.clearTimeout(timer);
+    }, [search]);
 
-    const fetchProfile = async () => {
+    useEffect(() => {
+        setPage(1);
+    }, [filter, debouncedSearch]);
+
+    useEffect(() => {
+        void fetchOrders(page);
+    }, [page, filter, debouncedSearch]);
+
+    const fetchOrders = async (pageNumber = page) => {
+        setLoading(true);
         try {
-            const res = await fetch('/api/admin/profile');
+            const params = new URLSearchParams({
+                page: String(pageNumber),
+                limit: '25',
+                status: filter,
+                search: debouncedSearch,
+            });
+            const res = await fetch(`/api/admin/orders?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
-                setUserProfile(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-    };
-
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch('/api/admin/settings', { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                setIsPaymentEnabled(data.isPaymentEnabled !== false);
-            }
-        } catch (error) {
-            console.error('Failed to fetch settings:', error);
-        }
-    };
-
-    const fetchOrders = async () => {
-        try {
-            const res = await fetch('/api/admin/orders');
-            if (res.ok) {
-                const data = await res.json();
-                setOrders(data);
+                setOrders(data.orders || []);
+                setTotalPages(data.totalPages || 1);
+                setTotalOrders(data.total || 0);
             }
         } catch (error) {
             console.error('Failed to fetch orders:', error);
@@ -131,11 +131,15 @@ export default function OrdersPage() {
 
     const filteredOrders = orders.filter(order => {
         if (!isAdmin && !isPaymentEnabled && order.paymentStatus === 'pending') return false;
-        const matchesFilter = filter === 'all' || order.paymentStatus === filter;
-        const matchesSearch = order.userName.toLowerCase().includes(search.toLowerCase()) ||
-            order.frameName.toLowerCase().includes(search.toLowerCase());
-        return matchesFilter && matchesSearch;
+        return true;
     });
+
+    const stats = {
+        total: totalOrders,
+        pending: orders.filter(o => o.paymentStatus === 'pending').length,
+        paid: orders.filter(o => o.paymentStatus === 'paid').length,
+        printed: orders.filter(o => o.paymentStatus === 'printed').length,
+    };
 
     // Delete single order
     const deleteOrder = async () => {
@@ -168,13 +172,6 @@ export default function OrdersPage() {
             setIsDeleting(false);
             setShowDeleteAllModal(false);
         }
-    };
-
-    const stats = {
-        total: orders.length,
-        pending: orders.filter(o => o.paymentStatus === 'pending').length,
-        paid: orders.filter(o => o.paymentStatus === 'paid').length,
-        printed: orders.filter(o => o.paymentStatus === 'printed').length,
     };
 
     if (loading) return <LoadingScreen message="Sinkronisasi Arsip Cetak..." />;
@@ -296,6 +293,12 @@ export default function OrdersPage() {
                         </tbody>
                     </table>
                 </div>
+                <PaginationBar
+                    page={page}
+                    totalPages={totalPages}
+                    totalItems={totalOrders}
+                    onPageChange={setPage}
+                />
             </motion.div>
 
             {/* Delete Single Order Modal */}
@@ -314,7 +317,7 @@ export default function OrdersPage() {
                 onClose={() => setShowDeleteAllModal(false)}
                 onConfirm={deleteAllOrders}
                 title="Hapus Semua Order?"
-                description={`Anda akan menghapus ${orders.length} order cetak secara permanen. Tindakan ini tidak dapat dibatalkan.`}
+                description={`Anda akan menghapus ${totalOrders} order cetak secara permanen. Tindakan ini tidak dapat dibatalkan.`}
                 saving={isDeleting}
             />
         </div>
