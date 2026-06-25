@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '@/lib/api-auth';
 import { validatePhotoId, validateUploadBuffer } from '@/lib/upload-validation';
 import {
@@ -8,14 +7,17 @@ import {
   resolveSupabasePhotoUrl,
   resolveSupabasePhotoUrlFromList,
 } from '@/lib/photo-storage';
+import {
+  isSessionVideoAssetId,
+  normalizeSessionVideoAsset,
+  uploadAssetBuffer,
+  getSupabaseAdmin,
+} from '@/lib/session-video-storage';
 
 const BUCKET_NAME = 'photobooth-images';
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return getSupabaseAdmin();
 }
 
 export async function GET(
@@ -83,6 +85,9 @@ export async function GET(
   return new NextResponse('Not found', { status: 404 });
 }
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -110,39 +115,35 @@ export async function POST(
   }
 
   const ext = validation.ext;
-
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-  if (blobToken) {
-    try {
-      const { put } = await import('@vercel/blob');
-      const res = await put(`images/${id}.${ext}`, new Blob([arrayBuffer], { type: mime }), {
-        access: 'public',
-        token: blobToken
-      });
-      return NextResponse.json({ ok: true, url: res.url });
-    } catch (e) {
-      console.error('Vercel Blob upload failed, falling back to Supabase:', e);
-    }
-  }
-
   const supabase = getSupabase();
-  const storagePath = `images/${id}.${ext}`;
+  const buffer = Buffer.from(arrayBuffer);
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(storagePath, arrayBuffer, {
-      contentType: mime,
-      upsert: true,
-    });
-
-  if (uploadError) {
-    console.error('Supabase Storage upload error:', uploadError);
+  let publicUrl: string;
+  try {
+    publicUrl = await uploadAssetBuffer(supabase, id, ext, buffer, mime);
+  } catch (e) {
+    console.error('Storage upload error:', e);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 
-  const { data: urlData } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(storagePath);
+  let normalizedUrl: string | undefined;
+  if (
+    isSessionVideoAssetId(id) &&
+    (validation.category === 'video' || (validation.category === 'image' && ext === 'gif'))
+  ) {
+    try {
+      const normalized = await normalizeSessionVideoAsset(id);
+      if (normalized.ok && normalized.url) {
+        normalizedUrl = normalized.url;
+      }
+    } catch (e) {
+      console.error('Post-upload normalize failed:', e);
+    }
+  }
 
-  return NextResponse.json({ ok: true, url: urlData.publicUrl });
+  return NextResponse.json({
+    ok: true,
+    url: normalizedUrl ?? publicUrl,
+    normalized: Boolean(normalizedUrl),
+  });
 }

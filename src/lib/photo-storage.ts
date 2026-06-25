@@ -7,7 +7,7 @@ export function getExtensionsForPhotoId(id: string): string[] {
   if (id.includes('-live-')) return ['mp4', 'webm'];
   if (id.includes('-orig-')) return ['jpg', 'jpeg', 'png'];
   if (id.endsWith('-gif') || id.includes('.gif')) return ['gif'];
-  if (id.endsWith('-bonus')) return ['gif', 'mp4', 'webm', 'png', 'jpg', 'jpeg'];
+  if (id.endsWith('-bonus')) return ['mp4', 'webm', 'gif'];
   return ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
 }
 
