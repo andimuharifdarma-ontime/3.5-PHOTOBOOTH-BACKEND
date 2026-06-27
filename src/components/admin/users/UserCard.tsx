@@ -136,7 +136,9 @@ export default function UserCard({ user, onEdit, onDelete, onGenerateApiKey, onM
                             {user.apiKey ? (
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-xs font-bold text-[#4A3F35] tracking-tight bg-white border border-[#EAE1D3] px-3 py-1.5 rounded-xl flex-1 truncate">
-                                        dovelens_••••••••{user.apiKey.slice(-8)}
+                                        {user.apiKey.includes('••••')
+                                            ? user.apiKey
+                                            : `dovelens_••••••••${user.apiKey.slice(-8)}`}
                                     </span>
                                     <button
                                         onClick={handleGenerateKey}

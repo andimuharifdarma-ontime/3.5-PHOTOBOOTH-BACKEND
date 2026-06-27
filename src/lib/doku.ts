@@ -43,3 +43,14 @@ export function generateDigest(body: any): string {
         .update(bodyString, 'utf8')
         .digest('base64');
 }
+
+/** Reject DOKU webhook timestamps outside the allowed skew window. */
+export function isDokuTimestampFresh(
+    timestamp: string,
+    maxSkewSeconds = 300,
+): boolean {
+    const parsed = Date.parse(timestamp);
+    if (Number.isNaN(parsed)) return false;
+    const skewMs = Math.abs(Date.now() - parsed);
+    return skewMs <= maxSkewSeconds * 1000;
+}

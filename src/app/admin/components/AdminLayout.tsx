@@ -8,6 +8,7 @@ import { ShieldAlert, LogOut } from 'lucide-react';
 import Sidebar from '@/components/admin/Sidebar';
 import MobileHeader from '@/components/admin/MobileHeader';
 import { useAdminProfile } from '@/contexts/AdminProfileContext';
+import { useIsLgScreen } from '@/hooks/useIsLgScreen';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -21,6 +22,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsedState] = useState(false);
     const [isSigningOut, setIsSigningOut] = useState(false);
+    const isLg = useIsLgScreen();
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -30,6 +32,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             }
         }
     }, []);
+
+    useEffect(() => {
+        if (!sidebarOpen || isLg) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [sidebarOpen, isLg]);
+
+    useEffect(() => {
+        if (!isLg) setSidebarOpen(false);
+    }, [pathname, isLg]);
 
     const setSidebarCollapsed = (collapsed: boolean) => {
         setSidebarCollapsedState(collapsed);
@@ -134,8 +149,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
 
             {/* Main Content */}
-            <main className={`${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} min-h-screen transition-all duration-300 ease-in-out`}>
-                <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+            <main className={`min-h-screen transition-all duration-300 ease-in-out ${sidebarCollapsed && isLg ? 'lg:ml-20' : 'lg:ml-72'}`}>
+                <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                     {children}
                 </div>
             </main>

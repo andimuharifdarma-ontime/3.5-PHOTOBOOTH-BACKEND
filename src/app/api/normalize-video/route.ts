@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, canUploadPhoto } from '@/lib/api-auth';
 import { validatePhotoId } from '@/lib/upload-validation';
 import {
   isSessionVideoAssetId,
@@ -10,8 +10,9 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  let auth;
   try {
-    await requireAuth(req);
+    auth = await requireAuth(req);
   } catch (response) {
     if (response instanceof Response) return response;
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,6 +27,10 @@ export async function POST(req: NextRequest) {
         { error: 'Invalid video asset id (must end with -bonus or -live)' },
         { status: 400 },
       );
+    }
+
+    if (!(await canUploadPhoto(auth, id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const result = await normalizeSessionVideoAsset(id);

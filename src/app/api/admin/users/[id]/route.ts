@@ -5,6 +5,11 @@ import crypto from 'crypto';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { logAuditEvent } from '@/lib/audit-logger';
+import {
+  generateRawApiKey,
+  hashApiKey,
+  apiKeyHintFromRaw,
+} from '@/lib/api-key';
 import { deleteFile } from '@/lib/file-helper';
 import { updateUserSchema, formatZodErrors } from '@/lib/validations/schemas';
 
@@ -203,11 +208,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const apiKey = 'dovelens_' + crypto.randomBytes(24).toString('hex');
+        const rawApiKey = generateRawApiKey();
 
         const updatedUser = await prisma.adminUser.update({
             where: { id: String(id) },
-            data: { apiKey } as any
+            data: {
+                apiKey: hashApiKey(rawApiKey),
+                apiKeyHint: apiKeyHintFromRaw(rawApiKey),
+            } as any,
         });
 
         // Audit log
@@ -220,7 +228,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
             details: `Generated new API key for user ${updatedUser.email}`,
         }, request);
 
-        return NextResponse.json({ apiKey });
+        return NextResponse.json({ apiKey: rawApiKey });
     } catch (error: any) {
         console.error('PATCH API Key Error:', error);
         return NextResponse.json({

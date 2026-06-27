@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit-logger';
+import { maskApiKeyHint } from '@/lib/api-key';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ export async function GET() {
                 name: true,
                 email: true,
                 apiKey: true,
+                apiKeyHint: true,
                 isPaymentEnabled: true,
                 createdAt: true,
                 settings: {
@@ -48,7 +50,7 @@ export async function GET() {
             id: client.id,
             name: client.name || 'Unnamed Client',
             email: client.email,
-            apiKey: client.apiKey,
+            apiKey: maskApiKeyHint(client.apiKeyHint),
             isPaymentEnabled: client.isPaymentEnabled,
             totalOrders: client._count.printOrders,
             isKioskLocked: client.settings?.isKioskLocked ?? false,

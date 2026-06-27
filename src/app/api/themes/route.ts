@@ -2,56 +2,34 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getApiKeyFromRequest, resolveUserByApiKey } from '@/lib/api-auth';
 
 // GET all active themes for user-facing pages
 export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const apiKey = searchParams.get('apiKey') || request.headers.get('x-api-key') || request.headers.get('X-API-Key');
-
         const session = await getServerSession(authOptions);
         const whereClause: any = { isActive: true };
 
         if (session?.user) {
             const user = session.user as any;
 
-            // ADMIN sees ALL active themes (no userName filter)
-            // CLIENT/KARYAWAN only sees their OWN themes
             if (user.role !== 'ADMIN') {
                 const userName = (user.name || user.email || '').toLowerCase();
                 whereClause.userName = {
                     equals: userName,
-                    mode: 'insensitive'
+                    mode: 'insensitive',
                 };
             }
         } else {
-            // KIOSK MODE (Unauthenticated)
-            // Identify the kiosk owner from API Key or fallback to system settings
-            let ownerName = 'system';
-
-            if (apiKey) {
-                const adminUser = await prisma.adminUser.findFirst({
-                    where: { apiKey } as any
-                });
-                if (adminUser) {
-                    ownerName = (adminUser.name || adminUser.email || '').toLowerCase();
-                }
+            const adminUser = await resolveUserByApiKey(getApiKeyFromRequest(request));
+            if (!adminUser) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
-            if (ownerName === 'system') {
-                const setting = await prisma.systemSetting.findFirst({
-                    include: { adminUser: true }
-                });
-
-                if (setting?.adminUser) {
-                    const owner = setting.adminUser;
-                    ownerName = (owner.name || owner.email || '').toLowerCase();
-                }
-            }
-
+            const ownerName = (adminUser.name || adminUser.email || '').toLowerCase();
             whereClause.userName = {
                 equals: ownerName,
-                mode: 'insensitive'
+                mode: 'insensitive',
             };
         }
 

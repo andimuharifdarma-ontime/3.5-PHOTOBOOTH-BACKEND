@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { getTokensFromCode } from '@/lib/googleDriveOAuth';
 
 /**
@@ -6,6 +8,13 @@ import { getTokensFromCode } from '@/lib/googleDriveOAuth';
  * GET /api/auth/google/callback?code=xxx
  */
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.redirect(
+      new URL('/login?from=/admin/oauth-setup', req.url)
+    );
+  }
+
   try {
     const searchParams = req.nextUrl.searchParams;
     const code = searchParams.get('code');

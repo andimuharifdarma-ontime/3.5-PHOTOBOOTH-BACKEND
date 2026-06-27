@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, canUploadPhoto } from '@/lib/api-auth';
 import { validateUploadBuffer } from '@/lib/upload-validation';
 import { livePhotoUploadSchema, formatZodErrors } from '@/lib/validations/schemas';
 
@@ -12,8 +12,9 @@ function getSupabase() {
 }
 
 export async function POST(req: NextRequest) {
+  let auth;
   try {
-    await requireAuth(req);
+    auth = await requireAuth(req);
   } catch (response) {
     if (response instanceof Response) return response;
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -30,6 +31,10 @@ export async function POST(req: NextRequest) {
         { error: 'Validation error', details: formatZodErrors(parsed.error) },
         { status: 400 }
       );
+    }
+
+    if (!(await canUploadPhoto(auth, parsed.data.photoId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (!file) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getApiKeyFromRequest, resolveUserByApiKey } from '@/lib/api-auth';
 import { ALL_ARTISTIC_FILTERS } from '@/lib/filters';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { settingsSchema, formatZodErrors } from '@/lib/validations/schemas';
@@ -42,48 +43,33 @@ export async function GET(request: Request) {
     try {
         const session = await getServerSession(authOptions);
         const { searchParams } = new URL(request.url);
-        const apiKey = searchParams.get('apiKey');
         let setting: any = null;
 
-        // KIOSK ACCESS (Unauthenticated)
+        // Kiosk access: X-API-Key header only (never query string)
         if (!session) {
-            if (apiKey) {
-                const adminUser = await prisma.adminUser.findFirst({
-                    where: { apiKey } as any
-                });
-                if (adminUser) {
-                    setting = await prisma.systemSetting.findUnique({
-                        where: { adminUserId: adminUser.id },
-                        include: { adminUser: true }
-                    });
-                }
+            const adminUser = await resolveUserByApiKey(getApiKeyFromRequest(request));
+            if (!adminUser) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
-            if (!setting) {
-                // Universal Settings: Get the first available settings record
-                setting = await prisma.systemSetting.findFirst({
-                    include: { adminUser: true }
-                });
-            }
+            setting = await prisma.systemSetting.findUnique({
+                where: { adminUserId: adminUser.id },
+                include: { adminUser: true },
+            });
 
             if (!setting) {
-                // Fallback default
                 return NextResponse.json({
                     isKioskLocked: false,
-                    isPaymentEnabled: true,
+                    isPaymentEnabled: adminUser.isPaymentEnabled,
                     isFrameSelectionEnabled: true,
                     isPhotoSessionEnabled: true,
                     isPhotoSelectionEnabled: true,
                     isPhotoFilterEnabled: true,
-                    isResultEnabled: true
+                    isResultEnabled: true,
                 });
             }
 
-            // SYNC: Ensure Kiosk respects the owner's personal payment preference
-            if (setting.adminUser) {
-                setting.isPaymentEnabled = setting.adminUser.isPaymentEnabled;
-            }
-
+            setting.isPaymentEnabled = adminUser.isPaymentEnabled;
             return NextResponse.json(setting);
         }
 

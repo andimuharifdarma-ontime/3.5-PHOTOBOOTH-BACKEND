@@ -57,8 +57,30 @@ export const authOptions: NextAuthOptions = {
         })
     ],
     callbacks: {
-        async jwt({ token, user }) {
-            if (user) {
+        async signIn({ user, account }) {
+            if (account?.provider === 'google') {
+                if (!user?.email) return false;
+                const adminUser = await prisma.adminUser.findUnique({
+                    where: { email: user.email },
+                });
+                if (!adminUser) {
+                    return '/login?error=AccessDenied';
+                }
+            }
+            return true;
+        },
+        async jwt({ token, user, account }) {
+            if (user?.email && account?.provider === 'google') {
+                const adminUser = await prisma.adminUser.findUnique({
+                    where: { email: user.email },
+                });
+                if (adminUser) {
+                    token.role = adminUser.role;
+                    token.id = adminUser.id;
+                    token.canManageThemes = adminUser.canManageThemes;
+                    token.isPaymentEnabled = adminUser.isPaymentEnabled;
+                }
+            } else if (user) {
                 token.role = (user as any).role;
                 token.id = user.id;
                 token.canManageThemes = (user as any).canManageThemes;
@@ -67,7 +89,28 @@ export const authOptions: NextAuthOptions = {
             return token;
         },
         async session({ session, token }) {
-            if (session.user) {
+            if (session.user?.email) {
+                const dbUser = await prisma.adminUser.findUnique({
+                    where: { email: session.user.email },
+                    select: {
+                        id: true,
+                        name: true,
+                        role: true,
+                        canManageThemes: true,
+                        isPaymentEnabled: true,
+                    },
+                });
+
+                if (dbUser) {
+                    session.user.name = dbUser.name ?? session.user.name;
+                    (session.user as any).id = dbUser.id;
+                    (session.user as any).role = dbUser.role;
+                    (session.user as any).canManageThemes = dbUser.canManageThemes;
+                    (session.user as any).isPaymentEnabled = dbUser.isPaymentEnabled;
+                } else {
+                    (session.user as any).role = undefined;
+                }
+            } else if (session.user) {
                 (session.user as any).role = token.role;
                 (session.user as any).id = token.id;
                 (session.user as any).canManageThemes = token.canManageThemes;
