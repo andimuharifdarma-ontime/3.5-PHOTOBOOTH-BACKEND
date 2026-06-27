@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transcodeBufferToMobileMp4 } from '@/lib/server-transcode';
+import { authenticateRequest, isActivePhotoSession, basePhotoId } from '@/lib/api-auth';
+import { validatePhotoId } from '@/lib/upload-validation';
+import { checkRateLimit, RATE_LIMIT_TRANSCODE } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -7,8 +10,28 @@ export const maxDuration = 60;
 const MAX_INPUT_BYTES = 50 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
+  const rateLimit = checkRateLimit(req, 'transcode-mp4', RATE_LIMIT_TRANSCODE);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Terlalu banyak request transcode. Coba lagi nanti.' },
+      { status: 429, headers: rateLimit.headers },
+    );
+  }
+
   const formData = await req.formData();
   const file = formData.get('file');
+  const photoIdRaw = formData.get('photoId');
+  const photoId = typeof photoIdRaw === 'string' ? basePhotoId(photoIdRaw.trim()) : '';
+
+  const auth = await authenticateRequest(req);
+  const publicSessionOk =
+    photoId &&
+    validatePhotoId(photoId) &&
+    isActivePhotoSession(photoId);
+
+  if (!auth && !publicSessionOk) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   if (!(file instanceof Blob) || file.size === 0) {
     return NextResponse.json({ error: 'File tidak valid' }, { status: 400 });

@@ -144,6 +144,7 @@ model AdminUser {
   isPaymentEnabled Boolean        @default(false)
   initialCapital   Int            @default(0)
   apiKey           String?        @unique
+  apiKeyHint       String?
   settings         SystemSetting?
   printOrders      PrintOrder[]
   auditLogs        AuditLog[]

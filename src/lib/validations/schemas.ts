@@ -129,6 +129,35 @@ export const offlineSessionSchema = z.object({
   imageUrl: z.string().max(500).optional().default(''),
 });
 
+/** Allowed payment statuses for bulk offline sync (no pending — prevents payment bypass). */
+export const OFFLINE_SYNC_PAYMENT_STATUSES = ['paid', 'printed', 'free'] as const;
+
+export const offlineSyncOrderSchema = z.object({
+  localId: z.string().max(100).optional(),
+  userName: z.string().min(1).max(100).trim(),
+  frameId: z.string().min(1).max(100),
+  frameName: z.string().min(1).max(200).trim(),
+  quantity: z.number().int().min(1).max(20).optional().default(1),
+  pricePerFrame: z.number().min(0).max(1_000_000).optional().default(0),
+  totalPrice: z.number().min(0).max(10_000_000).optional().default(0),
+  costPrice: z.number().min(0).max(1_000_000).optional().default(2500),
+  imageUrl: z.string().max(500).optional().default(''),
+  paymentStatus: z.enum(OFFLINE_SYNC_PAYMENT_STATUSES).optional().default('free'),
+  printedAt: z.union([z.string(), z.number()]).optional(),
+  createdAt: z.union([z.string(), z.number()]).optional(),
+});
+
+export const offlineSyncBatchSchema = z.object({
+  orders: z.array(offlineSyncOrderSchema).min(1).max(50),
+});
+
+export const backupToDriveSchema = z.object({
+  imageId: z.string().regex(/^[a-zA-Z0-9_-]{8,128}$/, 'Invalid image ID'),
+  bonusId: z.string().regex(/^[a-zA-Z0-9_-]{8,128}$/, 'Invalid bonus ID').optional(),
+  liveId: z.string().regex(/^[a-zA-Z0-9_-]{8,128}$/, 'Invalid live ID').optional(),
+  userName: z.string().max(100).optional(),
+});
+
 // ==========================
 // Live Photo Upload Schema
 // ==========================

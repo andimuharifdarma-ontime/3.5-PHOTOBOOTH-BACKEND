@@ -2,19 +2,22 @@ import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import { generateDokuSignature, generateDigest } from '../../../../lib/doku';
 import * as crypto from 'crypto';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { authenticateRequest } from '@/lib/api-auth';
 import { checkRateLimit, RATE_LIMIT_CHECKOUT } from '@/lib/rate-limiter';
 import { checkoutSchema, formatZodErrors } from '@/lib/validations/schemas';
 
 export async function POST(request: Request) {
-    // Rate limit check
     const rateLimit = checkRateLimit(request, 'checkout', RATE_LIMIT_CHECKOUT);
     if (!rateLimit.allowed) {
         return NextResponse.json(
             { error: 'Terlalu banyak request. Coba lagi nanti.' },
             { status: 429, headers: rateLimit.headers }
         );
+    }
+
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -53,62 +56,23 @@ export async function POST(request: Request) {
 
         const totalPrice = quantity * pricePerFrame;
 
-        const apiKey = request.headers.get('x-api-key') || request.headers.get('X-API-Key');
+        const isPaymentEnabled = auth.user.isPaymentEnabled;
+        let resolvedAdminUserId = auth.user.id;
 
-        // Check if payment is enabled
-        // Priority 1: Current Session User (for Dovelens per-account business model)
-        const session = await getServerSession(authOptions);
-        let isPaymentEnabled = true;
-        let resolvedAdminUserId = null;
-
-        if (session?.user) {
-            const user = await prisma.adminUser.findUnique({
-                where: { email: session.user.email! },
-                select: { id: true, isPaymentEnabled: true }
-            });
-            if (user) {
-                isPaymentEnabled = user.isPaymentEnabled;
-                resolvedAdminUserId = user.id;
-            }
-        } else if (apiKey) {
-            const user = await prisma.adminUser.findFirst({
-                where: { apiKey } as any,
-                select: { id: true, isPaymentEnabled: true }
-            });
-            if (user) {
-                isPaymentEnabled = user.isPaymentEnabled;
-                resolvedAdminUserId = user.id;
-            }
-        } else {
-            // Priority 2: Fallback to Global System Settings
-            const settings = await prisma.systemSetting.findFirst({
-                include: { adminUser: true }
-            });
-            
-            if (settings) {
-                if (settings.adminUser) {
-                    isPaymentEnabled = settings.adminUser.isPaymentEnabled;
-                    resolvedAdminUserId = settings.adminUser.id;
-                } else {
-                    isPaymentEnabled = settings.isPaymentEnabled !== false;
-                }
-            } else {
-                isPaymentEnabled = true;
-            }
-        }
-
-        // Resolve Admin User ID based on the Frame Theme's Owner (userName) if not yet resolved
-        if (!resolvedAdminUserId && frame?.theme?.userName) {
+        // Attach frame theme owner when different from authenticated kiosk account
+        if (frame?.theme?.userName) {
             const ownerUser = await prisma.adminUser.findFirst({
                 where: {
                     name: {
                         equals: frame.theme.userName,
-                        mode: 'insensitive'
-                    }
+                        mode: 'insensitive',
+                    },
                 },
-                select: { id: true }
+                select: { id: true },
             });
-            resolvedAdminUserId = ownerUser?.id || null;
+            if (ownerUser) {
+                resolvedAdminUserId = ownerUser.id;
+            }
         }
 
         // 1. Create order in DB (pending if payment enabled, paid if disabled)
@@ -238,7 +202,6 @@ export async function POST(request: Request) {
             console.error('DOKU API Error:', data);
             return NextResponse.json({
                 error: 'Failed to create DOKU session',
-                details: data
             }, { status: 400 });
         }
 

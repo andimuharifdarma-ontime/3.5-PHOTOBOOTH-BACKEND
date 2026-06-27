@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/api-auth';
 
 const BUCKET_NAME = 'photobooth-images';
 
@@ -11,6 +12,13 @@ function getSupabase() {
 }
 
 export async function GET(request: Request) {
+    try {
+        await requireAdmin(request);
+    } catch (response) {
+        if (response instanceof Response) return response;
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const folder = searchParams.get('folder') || 'images';

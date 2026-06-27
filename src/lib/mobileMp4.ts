@@ -284,9 +284,16 @@ async function encodeWithMediaRecorder(
 }
 
 /** Re-encode arbitrary video blob to mobile MP4 via backend ffmpeg (fallback). */
-export async function transcodeBlobViaApi(blob: Blob, filename = 'input.webm'): Promise<Blob> {
+export async function transcodeBlobViaApi(
+  blob: Blob,
+  filename = 'input.webm',
+  photoId?: string,
+): Promise<Blob> {
   const formData = new FormData();
   formData.append('file', blob, filename);
+  if (photoId) {
+    formData.append('photoId', photoId);
+  }
   const response = await fetch('/api/transcode-mp4', { method: 'POST', body: formData });
   if (!response.ok) {
     throw new Error('Transcode MP4 gagal');
@@ -299,12 +306,13 @@ export async function ensureMobileMp4(
   blob: Blob,
   sourceName = 'video.webm',
   maxBytes = VIDEO_BUDGET_MAX_BYTES,
+  photoId?: string,
 ): Promise<Blob> {
   if (await isMobileCompatibleMp4(blob) && blob.size <= maxBytes) {
     return new Blob([await blob.arrayBuffer()], { type: 'video/mp4' });
   }
   try {
-    const transcoded = await transcodeBlobViaApi(blob, sourceName);
+    const transcoded = await transcodeBlobViaApi(blob, sourceName, photoId);
     if (transcoded.size <= maxBytes) {
       return new Blob([await transcoded.arrayBuffer()], { type: 'video/mp4' });
     }

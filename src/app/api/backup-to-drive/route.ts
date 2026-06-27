@@ -1,35 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToGoogleDrive, createDailyFolder } from '@/lib/googleDrive';
 import { uploadToGoogleDriveOAuth, createDailyFolderOAuth } from '@/lib/googleDriveOAuth';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { authenticateRequest, canUploadPhoto } from '@/lib/api-auth';
+import { backupToDriveSchema, formatZodErrors } from '@/lib/validations/schemas';
 
 export async function POST(req: NextRequest) {
-  // Security: Require authentication to prevent unauthorized Drive uploads
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  console.log('');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🚀 BACKUP TO GOOGLE DRIVE - REQUEST RECEIVED');
-  console.log('═══════════════════════════════════════════════════════');
-
   try {
     const body = await req.json();
-    const { imageId, bonusId, userName } = body;
-
-    console.log('📦 Request body:', { imageId, bonusId, userName });
-
-    // Validasi
-    if (!imageId) {
-      console.error('❌ Missing imageId in request');
+    const parsed = backupToDriveSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Missing imageId' },
-        { status: 400 }
+        { error: 'Validation error', details: formatZodErrors(parsed.error) },
+        { status: 400 },
       );
     }
+
+    const { imageId, bonusId, liveId, userName } = parsed.data;
+
+    if (!(await canUploadPhoto(auth, imageId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (bonusId && !(await canUploadPhoto(auth, bonusId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (liveId && !(await canUploadPhoto(auth, liveId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    console.log('[backup-to-drive] Request for imageId:', imageId);
 
     // Check auth method: OAuth (preferred) or Service Account (fallback)
     const useOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
@@ -50,11 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('🔐 Using auth method:', useOAuth ? 'OAuth' : 'Service Account');
-    console.log('📁 GOOGLE_DRIVE_FOLDER_ID:', process.env.GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'MISSING');
-    console.log('🔑 GOOGLE_REFRESH_TOKEN:', useOAuth ? 'SET' : 'MISSING');
-    console.log('📧 GOOGLE_SERVICE_ACCOUNT_EMAIL:', useServiceAccount ? 'SET' : 'MISSING');
-    console.log('🔐 GOOGLE_PRIVATE_KEY:', process.env.GOOGLE_PRIVATE_KEY ? 'SET (length: ' + process.env.GOOGLE_PRIVATE_KEY.length + ')' : 'MISSING');
+    console.log('[backup-to-drive] Auth method:', useOAuth ? 'OAuth' : 'Service Account');
 
     // Buat folder untuk hari ini
     let dailyFolderId: string;
@@ -171,16 +170,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Backup live photo video (jika ada)
-    if (body.liveId) {
-      console.log('📤 Backing up live photo:', body.liveId);
+    if (liveId) {
+      console.log('[backup-to-drive] Backing up live photo:', liveId);
       try {
         const liveResponse = await fetchWithRetry(
-          `${req.nextUrl.origin}/api/images/${body.liveId}`
+          `${req.nextUrl.origin}/api/images/${liveId}`
         );
 
         if (liveResponse && liveResponse.ok) {
           const liveBuffer = Buffer.from(await liveResponse.arrayBuffer());
-          const fileName = `${userName || 'user'}_${body.liveId}.mp4`;
+          const fileName = `${userName || 'user'}_${liveId}.mp4`;
 
           const uploadResult = useOAuth
             ? await uploadToGoogleDriveOAuth(liveBuffer, fileName, 'video/mp4', dailyFolderId)

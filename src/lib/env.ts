@@ -37,6 +37,8 @@ const optionalServerEnvVars = [
   'SMTP_PASSWORD',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
+  'ALLOWED_ORIGINS',
+  'API_KEY_PEPPER',
 ] as const;
 
 /**
