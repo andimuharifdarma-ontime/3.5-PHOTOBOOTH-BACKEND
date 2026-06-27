@@ -92,15 +92,15 @@ export default function Sidebar({
 
     return (
         <aside
-            className={`fixed top-0 left-0 z-50 flex h-full flex-col bg-[#1C1917] text-white shadow-[40px_0_80px_rgba(0,0,0,0.1)] transition-all duration-300 ease-in-out
+            className={`fixed top-0 left-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#1C1917] text-white shadow-[40px_0_80px_rgba(0,0,0,0.1)] transition-all duration-300 ease-in-out
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
                 lg:translate-x-0
                 ${collapsed ? 'w-[min(100vw-1rem,18rem)] lg:w-20' : 'w-[min(100vw-1rem,18rem)] lg:w-72'}
-                pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
+                pt-[env(safe-area-inset-top,0px)]
             `}
         >
             {/* Logo */}
-            <div className="shrink-0 border-b border-white/5 px-4 py-4 sm:px-5 sm:py-5 lg:p-6">
+            <div className="shrink-0 border-b border-white/5 px-3 py-3 sm:px-4 sm:py-4 lg:p-6">
                 <div className="flex items-center justify-between gap-2">
                     {!collapsed ? (
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -154,7 +154,7 @@ export default function Sidebar({
             </div>
 
             {/* Profile */}
-            <div className="shrink-0 flex justify-center bg-white/[0.02] px-4 py-4 sm:py-5">
+            <div className="shrink-0 flex justify-center bg-white/[0.02] px-3 py-3 sm:px-4 sm:py-4">
                 <div className={`flex w-full items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#A68B67]/30 bg-[#A68B67]/20 font-sans text-lg italic text-[#A68B67]">
                         {session?.user?.name?.[0] || session?.user?.email?.[0]?.toUpperCase() || 'U'}
@@ -173,78 +173,84 @@ export default function Sidebar({
                 </div>
             </div>
 
-            {/* Navigation — flex-1 scroll, no overlap with footer */}
-            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-3 lg:p-4">
-                <div className="space-y-6 sm:space-y-8">
-                    {['ANALYTICS', 'STUDIO', 'SYSTEM'].map((category) => {
-                        const items = filteredNavItems.filter(i => i.category === category);
-                        if (items.length === 0) return null;
-
-                        return (
-                            <div key={category} className="space-y-1">
-                                {!collapsed ? (
-                                    <p className="mb-2 px-3 text-[8px] font-black uppercase tracking-[0.4em] text-white/20 sm:px-4">
-                                        {category === 'STUDIO' ? 'Studio Asset' : category}
-                                    </p>
-                                ) : (
-                                    <div className="mx-2 my-3 h-px bg-white/5" />
-                                )}
-                                {items.map((item) => {
-                                    const Icon = item.icon;
-                                    const active = isActive(item.href);
-                                    return (
-                                        <Link
-                                            key={item.href}
-                                            href={item.href}
-                                            onClick={() => setSidebarOpen(false)}
-                                            title={collapsed ? item.label : undefined}
-                                            className={`relative flex min-h-[44px] items-center rounded-sm transition-all duration-200 group
-                                                ${collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-3 sm:gap-4 sm:px-4'}
-                                                ${active ? 'text-white' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
-                                            `}
-                                        >
-                                            {active && (
-                                                <motion.div
-                                                    layoutId="activeTab"
-                                                    className="absolute inset-0 rounded-sm border-l-2 border-[#A68B67] bg-white/[0.05]"
-                                                    transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-                                                />
-                                            )}
-                                            <Icon className={`relative z-10 h-5 w-5 shrink-0 transition-all duration-200 sm:h-4 sm:w-4 ${active ? 'scale-110 text-[#A68B67]' : 'group-hover:text-[#A68B67]'}`} />
-                                            {!collapsed && (
-                                                <>
-                                                    <span className={`relative z-10 text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}>
-                                                        {item.label}
-                                                    </span>
-                                                    {active && (
-                                                        <div className="relative z-10 ml-auto h-1 w-1 animate-pulse rounded-full bg-[#A68B67]" />
-                                                    )}
-                                                </>
-                                            )}
-                                        </Link>
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
-                </div>
-            </nav>
-
-            {/* Sign out — in flow, not absolute */}
-            <div className={`shrink-0 border-t border-white/5 bg-black/20 ${collapsed ? 'p-3 lg:p-4' : 'p-4 sm:p-6 lg:p-8'}`}>
-                <button
-                    type="button"
-                    onClick={handleSignOut}
-                    title={collapsed ? 'Sign Out Portal' : undefined}
-                    className={`flex min-h-[44px] w-full items-center text-white/30 transition-all duration-200 group hover:text-red-400
-                        ${collapsed ? 'justify-center py-3' : 'gap-3 px-3 py-3 sm:gap-4 sm:px-4'}
-                    `}
+            {/* Nav scroll + sign out pinned — admin menu stays scrollable without hiding footer */}
+            <div className="flex min-h-0 flex-1 flex-col">
+                <nav
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 sm:px-3 lg:p-4"
+                    aria-label="Menu admin"
                 >
-                    <LogOut className="h-5 w-5 shrink-0 transition-transform group-hover:-translate-x-1 sm:h-4 sm:w-4" />
-                    {!collapsed && (
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Sign Out Portal</span>
-                    )}
-                </button>
+                    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+                        {['ANALYTICS', 'STUDIO', 'SYSTEM'].map((category) => {
+                            const items = filteredNavItems.filter(i => i.category === category);
+                            if (items.length === 0) return null;
+
+                            return (
+                                <div key={category} className="space-y-0.5">
+                                    {!collapsed ? (
+                                        <p className="mb-1.5 px-3 text-[8px] font-black uppercase tracking-[0.4em] text-white/20 sm:px-4">
+                                            {category === 'STUDIO' ? 'Studio Asset' : category}
+                                        </p>
+                                    ) : (
+                                        <div className="mx-2 my-2 h-px bg-white/5" />
+                                    )}
+                                    {items.map((item) => {
+                                        const Icon = item.icon;
+                                        const active = isActive(item.href);
+                                        return (
+                                            <Link
+                                                key={item.href}
+                                                href={item.href}
+                                                onClick={() => setSidebarOpen(false)}
+                                                title={collapsed ? item.label : undefined}
+                                                className={`relative flex min-h-[44px] items-center rounded-sm transition-all duration-200 group
+                                                    ${collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5 sm:gap-4 sm:px-4'}
+                                                    ${active ? 'text-white' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
+                                                `}
+                                            >
+                                                {active && (
+                                                    <motion.div
+                                                        layoutId="activeTab"
+                                                        className="absolute inset-0 rounded-sm border-l-2 border-[#A68B67] bg-white/[0.05]"
+                                                        transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+                                                    />
+                                                )}
+                                                <Icon className={`relative z-10 h-5 w-5 shrink-0 transition-all duration-200 sm:h-4 sm:w-4 ${active ? 'scale-110 text-[#A68B67]' : 'group-hover:text-[#A68B67]'}`} />
+                                                {!collapsed && (
+                                                    <>
+                                                        <span className={`relative z-10 text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}>
+                                                            {item.label}
+                                                        </span>
+                                                        {active && (
+                                                            <div className="relative z-10 ml-auto h-1 w-1 animate-pulse rounded-full bg-[#A68B67]" />
+                                                        )}
+                                                    </>
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </nav>
+
+                <div
+                    className={`shrink-0 border-t border-white/5 bg-[#1C1917] px-2 py-2 sm:px-3 lg:p-4 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]`}
+                >
+                    <button
+                        type="button"
+                        onClick={handleSignOut}
+                        title={collapsed ? 'Sign Out Portal' : undefined}
+                        className={`flex min-h-[44px] w-full items-center rounded-sm text-white/30 transition-all duration-200 group hover:bg-white/[0.03] hover:text-red-400
+                            ${collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5 sm:gap-4 sm:px-4'}
+                        `}
+                    >
+                        <LogOut className="h-5 w-5 shrink-0 transition-transform group-hover:-translate-x-1 sm:h-4 sm:w-4" />
+                        {!collapsed && (
+                            <span className="text-[10px] font-black uppercase tracking-[0.3em]">Sign Out Portal</span>
+                        )}
+                    </button>
+                </div>
             </div>
         </aside>
     );
