@@ -226,6 +226,18 @@ export const RATE_LIMIT_GENERAL: RateLimiterConfig = {
     windowSeconds: 60,
 };
 
+/** Video transcode: 5 requests per minute per IP (CPU-heavy) */
+export const RATE_LIMIT_TRANSCODE: RateLimiterConfig = {
+    maxRequests: 5,
+    windowSeconds: 60,
+};
+
+/** Offline bulk sync: 10 requests per minute per IP */
+export const RATE_LIMIT_SYNC: RateLimiterConfig = {
+    maxRequests: 10,
+    windowSeconds: 60,
+};
+
 /** Middleware login: 5 attempts per 60 seconds per IP */
 export const RATE_LIMIT_MW_LOGIN: RateLimiterConfig = {
     maxRequests: 5,

@@ -8,18 +8,27 @@ interface MobileHeaderProps {
 
 export default function MobileHeader({ setSidebarOpen }: MobileHeaderProps) {
     return (
-        <div className="lg:hidden bg-[#FDFBF7]/80 backdrop-blur-md border-b border-[#EAE1D3] p-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <header
+            className="sticky top-0 z-40 flex items-center justify-between border-b border-[#EAE1D3] bg-[#FDFBF7]/90 p-3 backdrop-blur-md shadow-sm sm:p-4 lg:hidden
+                pt-[max(0.75rem,env(safe-area-inset-top))]"
+        >
             <button
+                type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 rounded-full hover:bg-[#F5F1EA] transition-colors"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full transition-colors hover:bg-[#F5F1EA]"
+                aria-label="Buka menu navigasi"
             >
-                <Menu className="w-5 h-5 text-[#4A3F35]" />
+                <Menu className="h-6 w-6 text-[#4A3F35]" />
             </button>
             <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black tracking-[0.3em] text-[#A68B67] uppercase leading-none mb-1">Dovelens</span>
-                <span className="text-[8px] font-medium text-[#4A3F35]/50 uppercase tracking-widest">Dashboard</span>
+                <span className="mb-0.5 text-[10px] font-black uppercase leading-none tracking-[0.3em] text-[#A68B67]">
+                    Dovelens
+                </span>
+                <span className="text-[8px] font-medium uppercase tracking-widest text-[#4A3F35]/50">
+                    Dashboard
+                </span>
             </div>
-            <div className="w-10" />
-        </div>
+            <div className="min-h-[44px] min-w-[44px]" aria-hidden />
+        </header>
     );
 }

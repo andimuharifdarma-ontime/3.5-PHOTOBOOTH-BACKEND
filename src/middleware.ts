@@ -7,6 +7,7 @@ import {
     RATE_LIMIT_MW_AUTH,
     RATE_LIMIT_MW_ADMIN,
 } from "@/lib/rate-limiter";
+import { getAllowedOrigin } from "@/lib/cors";
 
 function getClientIp(req: NextRequest): string {
     const forwarded = req.headers.get("x-forwarded-for");
@@ -44,27 +45,6 @@ function buildCspHeader(nonce: string): string {
         ...(isDev ? [] : [`upgrade-insecure-requests`]),
     ];
     return csp.join('; ');
-}
-
-function getAllowedOrigin(req: NextRequest): string {
-    const origin = req.headers.get('origin') || '';
-    const allowedOrigins = [
-        process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3003',
-        'app://.',
-    ];
-
-    if (origin.endsWith('.vercel.app') || origin.endsWith('.vercel.sh')) {
-        return origin;
-    }
-
-    if (allowedOrigins.includes(origin)) {
-        return origin;
-    }
-
-    return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 }
 
 function handleCorsPreFlight(req: NextRequest): NextResponse | null {

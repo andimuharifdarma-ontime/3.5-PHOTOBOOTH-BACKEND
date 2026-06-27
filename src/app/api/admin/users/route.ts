@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { logAuditEvent } from '@/lib/audit-logger';
 import { createUserSchema, formatZodErrors } from '@/lib/validations/schemas';
+import { maskApiKeyHint } from '@/lib/api-key';
 
 // GET all users (Admin only)
 export async function GET() {
@@ -20,7 +21,8 @@ export async function GET() {
             orderBy: { createdAt: 'desc' }
         });
 
-        // Map users to remove sensitive data and ensure all fields are present
+        // Map users — apiKey only visible to ADMIN
+        const isAdmin = userRole === 'ADMIN';
         const safeUsers = users.map((user: any) => ({
             id: user.id || '',
             email: user.email || '',
@@ -31,7 +33,7 @@ export async function GET() {
             isPaymentEnabled: user.isPaymentEnabled || false,
             canInputCapital: user.canInputCapital || false,
             initialCapital: user.initialCapital || 0,
-            apiKey: user.apiKey || null,
+            ...(isAdmin ? { apiKey: maskApiKeyHint(user.apiKeyHint) } : {}),
             createdAt: user.createdAt
         }));
 

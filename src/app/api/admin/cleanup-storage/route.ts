@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import { cleanupExpiredPhotos, getPhotoRetentionDays } from '@/lib/cleanup-photos';
+import { requireAdmin, requireAuth } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  try {
+    await requireAuth(req);
+  } catch (response) {
+    if (response instanceof Response) return response;
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const retentionDays = await getPhotoRetentionDays();
     return NextResponse.json({ photoRetentionDays: retentionDays });
@@ -11,7 +19,14 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  try {
+    await requireAdmin(req);
+  } catch (response) {
+    if (response instanceof Response) return response;
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const result = await cleanupExpiredPhotos();
     return NextResponse.json({

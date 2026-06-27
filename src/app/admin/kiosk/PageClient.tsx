@@ -342,7 +342,9 @@ export default function KioskControlPage() {
                       
                       {kiosk.apiKey ? (
                         <div className="font-mono text-[11px] font-bold text-[#4A3F35] tracking-tight bg-white border border-[#EAE1D3] px-3 py-1.5 rounded-xl truncate select-all">
-                          dovelens_••••••••{kiosk.apiKey.slice(-8)}
+                          {kiosk.apiKey.includes('••••')
+                            ? kiosk.apiKey
+                            : `dovelens_••••••••${kiosk.apiKey.slice(-8)}`}
                         </div>
                       ) : (
                         <div className="text-[10px] text-stone-400 italic">

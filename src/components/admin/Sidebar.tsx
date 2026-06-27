@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-    Camera,
     LogOut,
     X,
     LayoutDashboard,
@@ -15,13 +14,13 @@ import {
     Cloud,
     Monitor,
     History,
-    Banknote,
     ClipboardList,
     Filter,
     Paintbrush,
     Menu,
-    Images
+    Images,
 } from 'lucide-react';
+import { useIsLgScreen } from '@/hooks/useIsLgScreen';
 
 interface SidebarProps {
     session: any;
@@ -36,18 +35,13 @@ interface SidebarProps {
 }
 
 export const navItems = [
-    // ANALYTICS
     { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'ANALYTICS' },
     { href: '/admin/reports', icon: TrendingUp, label: 'Income Report', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'ANALYTICS' },
     { href: '/admin/track-record', icon: History, label: 'Track Record', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'ANALYTICS' },
     { href: '/admin/offline-reports', icon: ClipboardList, label: 'Session History', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'ANALYTICS' },
-
-    // MANAGEMENT
     { href: '/admin/themes', icon: Palette, label: 'Tema & Frame', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'STUDIO', permission: 'canManageThemes' },
     { href: '/admin/filters', icon: Filter, label: 'Filter Foto', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'STUDIO', permission: 'canManageFilters' },
     { href: '/admin/orders', icon: ShoppingCart, label: 'Print Orders', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'STUDIO' },
-
-    // SYSTEM
     { href: '/admin/kiosk', icon: Monitor, label: 'Kontrol Kiosk', roles: ['ADMIN', 'CLIENT'], category: 'SYSTEM' },
     { href: '/admin/settings', icon: Settings, label: 'Pengaturan', roles: ['ADMIN', 'KARYAWAN', 'CLIENT'], category: 'SYSTEM' },
     { href: '/admin/users', icon: Users, label: 'Kelola Akun', roles: ['ADMIN'], category: 'SYSTEM' },
@@ -65,8 +59,11 @@ export default function Sidebar({
     pathname,
     handleSignOut,
     sidebarCollapsed = false,
-    setSidebarCollapsed
+    setSidebarCollapsed,
 }: SidebarProps) {
+    const isLg = useIsLgScreen();
+    /** Collapse mode is desktop-only; mobile drawer always shows full labels. */
+    const collapsed = sidebarCollapsed && isLg;
 
     const isActive = (href: string) => {
         if (href === '/admin') return pathname === '/admin';
@@ -81,162 +78,170 @@ export default function Sidebar({
     const filteredNavItems = navItems.filter(item => {
         if (!item.roles.includes(userRole)) return false;
 
-        // Special permission checks for KARYAWAN and CLIENT
         if (userRole !== 'ADMIN' && (item as any).permission) {
             const hasPermission = userProfile?.[(item as any).permission] || (session?.user as any)?.[(item as any).permission];
             if (!hasPermission) return false;
         }
 
         if (userRole === 'CLIENT') {
-            // "Income Report" is only for payment-enabled stores
             if (item.href === '/admin/reports' && !isPaymentEnabled) return false;
-            
-            // "Session History" is only for non-payment/offline tracking
             if (item.href === '/admin/offline-reports' && isPaymentEnabled) return false;
-            
-            // Note: Track Record is now intentionally universal for all clients
         }
         return true;
     });
 
     return (
         <aside
-            className={`fixed top-0 left-0 h-full bg-[#1C1917] text-white z-50 transform transition-all duration-300 ease-in-out lg:translate-x-0 shadow-[40px_0_80px_rgba(0,0,0,0.1)] 
-                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                ${sidebarCollapsed ? 'w-72 lg:w-20' : 'w-72'}
+            className={`fixed top-0 left-0 z-50 flex h-full flex-col bg-[#1C1917] text-white shadow-[40px_0_80px_rgba(0,0,0,0.1)] transition-all duration-300 ease-in-out
+                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                lg:translate-x-0
+                ${collapsed ? 'w-[min(100vw-1rem,18rem)] lg:w-20' : 'w-[min(100vw-1rem,18rem)] lg:w-72'}
+                pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
             `}
         >
-            {/* Logo Section */}
-            <div className="p-8 border-b border-white/5">
-                <div className="flex items-center justify-between">
-                    {!sidebarCollapsed ? (
-                        <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-4 overflow-hidden">
-                                <div className="w-10 h-10 rounded-sm flex items-center justify-center shrink-0 overflow-hidden bg-[#A68B67]/10 border border-[#A68B67]/30 shadow-2xl">
-                                    <img src="/logo/LOGO5.png" alt="Dove Logo" className="w-8 h-8 object-contain" />
+            {/* Logo */}
+            <div className="shrink-0 border-b border-white/5 px-4 py-4 sm:px-5 sm:py-5 lg:p-6">
+                <div className="flex items-center justify-between gap-2">
+                    {!collapsed ? (
+                        <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-[#A68B67]/30 bg-[#A68B67]/10 shadow-2xl">
+                                    <img src="/logo/LOGO5.png" alt="Dove Logo" className="h-8 w-8 object-contain" />
                                 </div>
-                                <div className="flex flex-col whitespace-nowrap">
-                                    <h1 className="text-base font-sans italic tracking-wide text-[#FDFBF7]">Dove <span className="font-sans not-italic font-black text-[#A68B67] uppercase text-[10px] tracking-[0.2em]">Photobooth</span></h1>
-                                    <p className="text-[7px] text-[#A68B67] font-black tracking-[0.2em] uppercase opacity-70">part of Dovelens.ft</p>
+                                <div className="min-w-0 flex flex-col">
+                                    <h1 className="truncate font-sans text-sm italic tracking-wide text-[#FDFBF7] sm:text-base">
+                                        Dove <span className="font-sans text-[10px] font-black not-italic uppercase tracking-[0.2em] text-[#A68B67]">Photobooth</span>
+                                    </h1>
+                                    <p className="text-[7px] font-black uppercase tracking-[0.2em] text-[#A68B67] opacity-70">part of Dovelens.ft</p>
                                 </div>
                             </div>
-                            
-                            {/* Toggle Button for Desktop */}
                             <button
+                                type="button"
                                 onClick={() => setSidebarCollapsed?.(true)}
-                                className="hidden lg:flex p-1.5 rounded-sm hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+                                className="hidden shrink-0 rounded-sm p-2 text-white/50 transition-colors hover:bg-white/5 hover:text-white lg:flex"
                                 title="Collapse Sidebar"
+                                aria-label="Collapse sidebar"
                             >
-                                <Menu className="w-4 h-4" />
+                                <Menu className="h-4 w-4" />
                             </button>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-3 w-full">
-                            {/* Brand Logo */}
-                            <div className="w-10 h-10 rounded-sm flex items-center justify-center shrink-0 overflow-hidden bg-[#A68B67]/10 border border-[#A68B67]/30 shadow-2xl">
-                                <img src="/logo/LOGO5.png" alt="Dove Logo" className="w-8 h-8 object-contain" />
+                        <div className="flex w-full flex-col items-center gap-2">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-[#A68B67]/30 bg-[#A68B67]/10 shadow-2xl">
+                                <img src="/logo/LOGO5.png" alt="Dove Logo" className="h-8 w-8 object-contain" />
                             </div>
-                            
-                            {/* Hamburger Menu Toggle Button Below Logo */}
                             <button
+                                type="button"
                                 onClick={() => setSidebarCollapsed?.(false)}
-                                className="p-1.5 rounded-sm hover:bg-white/5 transition-colors text-white/50 hover:text-white flex items-center justify-center"
+                                className="flex items-center justify-center rounded-sm p-2 text-white/50 transition-colors hover:bg-white/5 hover:text-white"
                                 title="Expand Sidebar"
+                                aria-label="Expand sidebar"
                             >
-                                <Menu className="w-4 h-4" />
+                                <Menu className="h-4 w-4" />
                             </button>
                         </div>
                     )}
-                    
+
                     <button
+                        type="button"
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden p-2 rounded-full hover:bg-white/5 transition-colors border border-white/10"
+                        className="shrink-0 rounded-full border border-white/10 p-2.5 transition-colors hover:bg-white/5 lg:hidden"
+                        aria-label="Tutup menu"
                     >
-                        <X className="w-4 h-4 text-white/50" />
+                        <X className="h-5 w-5 text-white/50" />
                     </button>
                 </div>
             </div>
 
-            {/* Profile Section */}
-            <div className="px-4 py-6 bg-white/[0.02] flex justify-center">
-                <div className="flex items-center gap-4 w-full justify-center">
-                    <div className="w-10 h-10 shrink-0 rounded-full bg-[#A68B67]/20 border border-[#A68B67]/30 flex items-center justify-center text-[#A68B67] font-sans italic text-lg">
+            {/* Profile */}
+            <div className="shrink-0 flex justify-center bg-white/[0.02] px-4 py-4 sm:py-5">
+                <div className={`flex w-full items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#A68B67]/30 bg-[#A68B67]/20 font-sans text-lg italic text-[#A68B67]">
                         {session?.user?.name?.[0] || session?.user?.email?.[0]?.toUpperCase() || 'U'}
                     </div>
-                    {!sidebarCollapsed && (
-                        <div className="flex-1 min-w-0 transition-opacity duration-300">
-                            <p className="text-[11px] font-black uppercase tracking-widest truncate">{session?.user?.name || 'User Studio'}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className={`w-1.5 h-1.5 rounded-full ${status === 'authenticated' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                <p className="text-[9px] font-bold text-[#A68B67] uppercase tracking-[0.2em]">{userRole}</p>
+                    {!collapsed && (
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-[11px] font-black uppercase tracking-widest">
+                                {session?.user?.name || 'User Studio'}
+                            </p>
+                            <div className="mt-1 flex items-center gap-2">
+                                <span className={`h-1.5 w-1.5 rounded-full ${status === 'authenticated' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#A68B67]">{userRole}</p>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Navigation */}
-            <nav className="p-2 lg:p-4 space-y-8 mt-4 overflow-y-auto max-h-[calc(100vh-250px)] scrollbar-hide">
-                {['ANALYTICS', 'STUDIO', 'SYSTEM'].map((category) => {
-                    const items = filteredNavItems.filter(i => i.category === category);
-                    if (items.length === 0) return null;
+            {/* Navigation — flex-1 scroll, no overlap with footer */}
+            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-3 lg:p-4">
+                <div className="space-y-6 sm:space-y-8">
+                    {['ANALYTICS', 'STUDIO', 'SYSTEM'].map((category) => {
+                        const items = filteredNavItems.filter(i => i.category === category);
+                        if (items.length === 0) return null;
 
-                    return (
-                        <div key={category} className="space-y-2">
-                            {!sidebarCollapsed ? (
-                                <p className="px-5 text-[8px] font-black text-white/20 uppercase tracking-[0.4em] mb-4">
-                                    {category === 'STUDIO' ? 'Studio Asset' : category}
-                                </p>
-                            ) : (
-                                <div className="h-px bg-white/5 my-4 mx-2" />
-                            )}
-                            {items.map((item) => {
-                                const Icon = item.icon;
-                                const active = isActive(item.href);
-                                return (
-                                    <div key={item.href} className="px-1 lg:px-2">
+                        return (
+                            <div key={category} className="space-y-1">
+                                {!collapsed ? (
+                                    <p className="mb-2 px-3 text-[8px] font-black uppercase tracking-[0.4em] text-white/20 sm:px-4">
+                                        {category === 'STUDIO' ? 'Studio Asset' : category}
+                                    </p>
+                                ) : (
+                                    <div className="mx-2 my-3 h-px bg-white/5" />
+                                )}
+                                {items.map((item) => {
+                                    const Icon = item.icon;
+                                    const active = isActive(item.href);
+                                    return (
                                         <Link
+                                            key={item.href}
                                             href={item.href}
-                                            target={item.href === '/' ? '_blank' : undefined}
                                             onClick={() => setSidebarOpen(false)}
-                                            title={sidebarCollapsed ? item.label : undefined}
-                                            className={`relative flex items-center ${sidebarCollapsed ? 'justify-center py-3' : 'gap-4 px-4 py-3'} rounded-sm transition-all duration-200 group ${active
-                                                ? 'text-white'
-                                                : 'text-white/40 hover:text-white hover:bg-white/[0.03]'
-                                                }`}
+                                            title={collapsed ? item.label : undefined}
+                                            className={`relative flex min-h-[44px] items-center rounded-sm transition-all duration-200 group
+                                                ${collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-3 sm:gap-4 sm:px-4'}
+                                                ${active ? 'text-white' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
+                                            `}
                                         >
                                             {active && (
                                                 <motion.div
                                                     layoutId="activeTab"
-                                                    className="absolute inset-0 bg-white/[0.05] border-l-2 border-[#A68B67] rounded-sm"
-                                                    transition={{ type: "spring", stiffness: 400, damping: 40 }}
+                                                    className="absolute inset-0 rounded-sm border-l-2 border-[#A68B67] bg-white/[0.05]"
+                                                    transition={{ type: 'spring', stiffness: 400, damping: 40 }}
                                                 />
                                             )}
-                                            <Icon className={`w-4 h-4 transition-all duration-200 ${active ? 'text-[#A68B67] scale-110' : 'group-hover:text-[#A68B67]'}`} />
-                                            {!sidebarCollapsed && (
-                                                <span className={`text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${active ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}>{item.label}</span>
-                                            )}
-                                            {!sidebarCollapsed && active && (
-                                                <div className="w-1 h-1 rounded-full bg-[#A68B67] ml-auto animate-pulse" />
+                                            <Icon className={`relative z-10 h-5 w-5 shrink-0 transition-all duration-200 sm:h-4 sm:w-4 ${active ? 'scale-110 text-[#A68B67]' : 'group-hover:text-[#A68B67]'}`} />
+                                            {!collapsed && (
+                                                <>
+                                                    <span className={`relative z-10 text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}>
+                                                        {item.label}
+                                                    </span>
+                                                    {active && (
+                                                        <div className="relative z-10 ml-auto h-1 w-1 animate-pulse rounded-full bg-[#A68B67]" />
+                                                    )}
+                                                </>
                                             )}
                                         </Link>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
+                                    );
+                                })}
+                            </div>
+                        );
+                    })}
+                </div>
             </nav>
 
-            {/* Bottom Section */}
-            <div className={`absolute bottom-0 left-0 right-0 ${sidebarCollapsed ? 'p-4' : 'p-8'} border-t border-white/5 bg-black/20 flex justify-center transition-all duration-300`}>
+            {/* Sign out — in flow, not absolute */}
+            <div className={`shrink-0 border-t border-white/5 bg-black/20 ${collapsed ? 'p-3 lg:p-4' : 'p-4 sm:p-6 lg:p-8'}`}>
                 <button
+                    type="button"
                     onClick={handleSignOut}
-                    title={sidebarCollapsed ? "Sign Out Portal" : undefined}
-                    className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center py-3' : 'gap-4 px-4 py-3'} text-white/30 hover:text-red-400 group transition-all duration-200`}
+                    title={collapsed ? 'Sign Out Portal' : undefined}
+                    className={`flex min-h-[44px] w-full items-center text-white/30 transition-all duration-200 group hover:text-red-400
+                        ${collapsed ? 'justify-center py-3' : 'gap-3 px-3 py-3 sm:gap-4 sm:px-4'}
+                    `}
                 >
-                    <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                    {!sidebarCollapsed && (
+                    <LogOut className="h-5 w-5 shrink-0 transition-transform group-hover:-translate-x-1 sm:h-4 sm:w-4" />
+                    {!collapsed && (
                         <span className="text-[10px] font-black uppercase tracking-[0.3em]">Sign Out Portal</span>
                     )}
                 </button>

@@ -738,7 +738,7 @@ const DownloadPageClient = () => {
 
             if (overlayFrame) ctx.drawImage(overlayFrame, 0, 0, W, H);
           },
-        }).then((blob) => ensureMobileMp4(blob, 'frame-bonus.webm'));
+        }).then((blob) => ensureMobileMp4(blob, 'frame-bonus.webm', undefined, imageId || routeId));
       } catch (error) {
         console.error('MP4 generation failed:', error);
       }
@@ -887,7 +887,7 @@ const DownloadPageClient = () => {
         },
       });
 
-      const mobileBlob = await ensureMobileMp4(videoBlob, 'live-photo.webm');
+      const mobileBlob = await ensureMobileMp4(videoBlob, 'live-photo.webm', undefined, imageId || routeId);
       const url = URL.createObjectURL(mobileBlob);
       setLivePhotoUrl(url);
 
@@ -939,10 +939,10 @@ const DownloadPageClient = () => {
         videoBlob = new Blob([await blob.arrayBuffer()], { type: 'video/mp4' });
       } else if (contentType.includes('gif') || blob.type.includes('gif') || gifUrl.includes('.gif')) {
         videoBlob = await convertGifToMp4(blob);
-        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
+        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm', undefined, imageId || routeId);
         videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
       } else {
-        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm');
+        videoBlob = await ensureMobileMp4(videoBlob, 'frame-bonus.webm', undefined, imageId || routeId);
         videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
       }
 
@@ -985,7 +985,7 @@ const DownloadPageClient = () => {
         videoBlob = new Blob([await blob.arrayBuffer()], { type: 'video/mp4' });
       } else {
         const { ensureMobileMp4 } = await loadMobileMp4();
-        videoBlob = await ensureMobileMp4(blob, 'live-photo.webm');
+        videoBlob = await ensureMobileMp4(blob, 'live-photo.webm', undefined, imageId || routeId);
         videoBlob = new Blob([await videoBlob.arrayBuffer()], { type: 'video/mp4' });
       }
 
