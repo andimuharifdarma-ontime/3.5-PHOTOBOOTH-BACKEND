@@ -1,0 +1,129 @@
+{
+  "name": "selftfoto-kiosk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SelftFoto Photobooth Kiosk Desktop",
+  "author": "Dovelens",
+  "main": "main.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "desktop": "concurrently \"next dev -p 3001\" \"wait-on http://localhost:3001 && electron .\"",
+    "desktop:prod": "concurrently \"next start -p 3001\" \"wait-on http://localhost:3001 && electron .\"",
+    "stage": "node scripts/stage-pack.js",
+    "pack:dir": "npm run stage && electron-builder --mac dir",
+    "pack:mac": "npm run stage && electron-builder --mac",
+    "pack:win": "npm run stage && electron-builder --win",
+    "pack:win:dir": "npm run stage && electron-builder --win dir",
+    "pack:win:portable": "npm run stage && electron-builder --win portable",
+    "pack": "npm run pack:mac"
+  },
+  "dependencies": {
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.15.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "wait-on": "^9.0.2"
+  },
+  "build": {
+    "appId": "com.dovelens.selftfoto-kiosk",
+    "productName": "SelftFoto Kiosk",
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-resources/next",
+        "to": "next",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "dist-resources/backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../python-camera-service",
+        "to": "camera",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "afterPack": "scripts/after-pack.js",
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.photography",
+      "target": [
+        "dir"
+      ],
+      "identity": null
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "SelftFoto-Kiosk-Setup-${version}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "SelftFoto Kiosk",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerLanguages": [
+        "en_US",
+        "id_ID"
+      ],
+      "language": "1033"
+    },
+    "portable": {
+      "artifactName": "SelftFoto-Kiosk-Portable-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "SelftFoto Kiosk"
+    }
+  }
+}
