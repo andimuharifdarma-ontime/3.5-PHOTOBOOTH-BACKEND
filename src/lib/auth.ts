@@ -19,7 +19,16 @@ export const authOptions: NextAuthOptions = {
 
                 try {
                     const user = await prisma.adminUser.findUnique({
-                        where: { email: credentials.email }
+                        where: { email: credentials.email },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            password: true,
+                            role: true,
+                            canManageThemes: true,
+                            isPaymentEnabled: true,
+                        },
                     });
 
                     if (!user || !user.password) {
@@ -46,7 +55,10 @@ export const authOptions: NextAuthOptions = {
                     if (error.message === "Email atau password salah") {
                         throw error;
                     }
-                    console.error("Auth error:", error);
+                    console.error("Auth DB error:", {
+                        code: error?.code,
+                        message: error?.message,
+                    });
                     throw new Error("Gagal terhubung ke database. Silakan hubungi admin.");
                 }
             }
