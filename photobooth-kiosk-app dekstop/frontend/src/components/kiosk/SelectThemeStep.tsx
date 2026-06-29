@@ -5,7 +5,11 @@ import { useKioskTheme } from "./KioskThemeProvider";
 import React from "react";
 import { motion } from "framer-motion";
 import { Layers } from "lucide-react";
-import { getPresetCardStyle, getPresetCardContentColors } from "@/lib/kiosk/theme";
+import {
+  cardSurfaceStyle,
+  getPresetCardContentColors,
+  getPresetCardStyle,
+} from "@/lib/kiosk/theme";
 
 interface SelectThemeStepProps {
   themes: any[];
@@ -14,6 +18,15 @@ interface SelectThemeStepProps {
   setStep: (step: any) => void;
   adminUrl: string;
   isPaymentEnabled?: boolean;
+}
+
+/** Preset shell tanpa scale/hover — untuk grid kartu tema portrait. */
+function themeCardShellClass(className: string) {
+  return className
+    .replace(/\s*scale-105\s*/g, " ")
+    .replace(/\s*z-10\s*/g, " ")
+    .replace(/\s*hover:\S+/g, "")
+    .trim();
 }
 
 export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
@@ -25,7 +38,10 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
   isPaymentEnabled = true,
 }) => {
   const kioskTheme = useKioskTheme();
-  const [hoveredId, setHoveredId] = React.useState<string | null>(null);
+  const panelStyle = cardSurfaceStyle(kioskTheme);
+  const cardColors = getPresetCardContentColors(kioskTheme, true);
+  const cardPreset = getPresetCardStyle(kioskTheme, true);
+  const cardShellClass = themeCardShellClass(cardPreset.className);
 
   const getFullImageUrl = (url: string) => {
     if (!url) return "";
@@ -81,10 +97,7 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
           <div
             className="col-span-3 text-center py-16 border border-dashed rounded-3xl font-bold"
             style={{
-              backgroundColor: kioskTheme.isLight
-                ? "rgba(255,255,255,0.9)"
-                : "rgba(12,10,9,0.6)",
-              borderColor: kioskTheme.surfaceBorder,
+              ...panelStyle,
               color: kioskTheme.subtextColorHex,
             }}
           >
@@ -92,24 +105,16 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
           </div>
         ) : (
           themes.map((studioTheme) => {
-            const isHovered = hoveredId === studioTheme.id;
-            const cardPreset = getPresetCardStyle(kioskTheme, isHovered);
-            const cardColors = getPresetCardContentColors(kioskTheme, isHovered);
             const previewUrl =
               studioTheme.previewUrl ||
               studioTheme.frames?.[0]?.previewUrl ||
               studioTheme.frames?.[0]?.imageUrl;
 
             return (
-              <motion.div
+              <div
                 key={studioTheme.id}
-                whileHover={{
-                  y: -4,
-                  transition: { duration: 0.3, ease: "easeOut" },
-                }}
-                whileTap={{ scale: 0.98 }}
-                onMouseEnter={() => setHoveredId(studioTheme.id)}
-                onMouseLeave={() => setHoveredId(null)}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setSelectedTheme(studioTheme);
                   if (studioTheme.frames && studioTheme.frames.length > 0) {
@@ -117,15 +122,25 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                   }
                   setStep("SELECT_FRAME");
                 }}
-                className={`group relative flex flex-col overflow-hidden cursor-pointer w-full !items-stretch !p-0 !gap-0 ${cardPreset.className}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setSelectedTheme(studioTheme);
+                    if (studioTheme.frames?.length > 0) {
+                      setSelectedFrame(studioTheme.frames[0]);
+                    }
+                    setStep("SELECT_FRAME");
+                  }
+                }}
+                className={`relative flex flex-col overflow-hidden cursor-pointer w-full !items-stretch !p-0 !gap-0 ${cardShellClass}`}
                 style={cardPreset.style}
               >
+                {/* Atas — preview besar (bentuk gambar 2) */}
                 <div
-                  className="relative aspect-[16/11] w-full overflow-hidden flex items-center justify-center border-b p-3"
+                  className="relative aspect-[4/5] w-full overflow-hidden flex items-center justify-center border-b"
                   style={{
-                    borderColor: cardColors.text,
+                    borderColor: `${cardColors.text}33`,
                     backgroundColor: kioskTheme.isLight
-                      ? "rgba(255,255,255,0.45)"
+                      ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.2)",
                   }}
                 >
@@ -133,12 +148,12 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                     <img
                       src={getFullImageUrl(previewUrl)}
                       alt={studioTheme.name}
-                      className="max-h-full max-w-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div
-                      className="flex flex-col items-center justify-center p-6 animate-pulse"
-                      style={{ color: kioskTheme.accent }}
+                      className="flex flex-col items-center justify-center p-6"
+                      style={{ color: cardColors.accent }}
                     >
                       <Layers className="w-12 h-12 mb-3 stroke-[1.5]" />
                       <span
@@ -149,20 +164,9 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                     </div>
                   )}
 
-                  <div
-                    className={`absolute top-3 left-3 px-2.5 py-1 border font-bold uppercase text-[9px] tracking-widest ${cardPreset.fontClass}`}
-                    style={{
-                      backgroundColor: kioskTheme.bgGradientStart,
-                      borderColor: cardColors.text,
-                      color: cardColors.accent,
-                    }}
-                  >
-                    {studioTheme.frames?.length || 0} Frames
-                  </div>
-
-                  {studioTheme.tag && (
+                  {studioTheme.tag ? (
                     <span
-                      className={`absolute top-3 right-3 px-2.5 py-1 uppercase text-[9px] tracking-widest ${cardPreset.fontClass}`}
+                      className={`absolute top-4 right-4 px-3 py-1 font-black uppercase text-[9px] tracking-widest rounded-full shadow ${cardPreset.fontClass}`}
                       style={{
                         backgroundColor: kioskTheme.accent,
                         color: kioskTheme.buttonTextColor,
@@ -170,12 +174,13 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                     >
                       {studioTheme.tag}
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
-                <div className="p-5 flex flex-col flex-1 relative z-10 w-full">
+                {/* Bawah — judul, deskripsi, aksi (bentuk gambar 2 + warna preset gambar 1) */}
+                <div className="p-6 flex flex-col flex-1 relative z-10 w-full">
                   <h3
-                    className={`text-xl tracking-wide mb-2 transition-colors duration-300 ${cardPreset.fontClass}`}
+                    className={`text-xl tracking-wide mb-2 ${cardPreset.fontClass}`}
                     style={{ color: cardColors.heading }}
                   >
                     {studioTheme.name}
@@ -189,7 +194,7 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                   </p>
 
                   <div
-                    className="mt-4 pt-3 border-t flex items-center justify-between"
+                    className="mt-5 pt-4 border-t flex items-center justify-between"
                     style={{ borderColor: `${cardColors.text}33` }}
                   >
                     <span
@@ -200,25 +205,15 @@ export const SelectThemeStep: React.FC<SelectThemeStepProps> = ({
                         ? `Rp ${(studioTheme.price ?? 5000).toLocaleString("id-ID")}`
                         : "Gratis"}
                     </span>
-                    <div
+                    <span
                       className={`flex items-center gap-1.5 text-xs uppercase tracking-widest ${cardPreset.fontClass}`}
                       style={{ color: cardColors.accent }}
                     >
-                      <span>PILIH</span>
-                      <motion.span
-                        animate={{ x: [0, 4, 0] }}
-                        transition={{
-                          repeat: Infinity,
-                          duration: 1.2,
-                          ease: "easeInOut",
-                        }}
-                      >
-                        →
-                      </motion.span>
-                    </div>
+                      PILIH →
+                    </span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             );
           })
         )}

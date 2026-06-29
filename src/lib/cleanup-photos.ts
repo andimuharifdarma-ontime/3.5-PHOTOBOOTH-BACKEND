@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import prisma from '@/lib/prisma';
+import { getGlobalPhotoRetentionDays } from '@/lib/photo-retention';
 
 export const CLEANUP_BUCKET_NAME = 'photobooth-images';
 export const CLEANUP_FOLDERS = ['images', 'live-photos'] as const;
@@ -11,11 +11,9 @@ export function getCleanupSupabase(): SupabaseClient {
   );
 }
 
+/** @deprecated Prefer getGlobalPhotoRetentionDays — alias for backward compatibility. */
 export async function getPhotoRetentionDays(): Promise<number> {
-  const setting = await prisma.systemSetting.findFirst({
-    select: { photoRetentionDays: true },
-  });
-  return setting?.photoRetentionDays ?? 7;
+  return getGlobalPhotoRetentionDays();
 }
 
 export type CleanupResult = {

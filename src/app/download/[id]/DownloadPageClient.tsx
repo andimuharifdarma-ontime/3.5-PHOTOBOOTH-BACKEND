@@ -225,7 +225,7 @@ const DownloadPageClient = () => {
         setTimeRemaining(expiration.remainingSec);
       }
 
-      void fetch('/api/admin/settings', { cache: 'no-store' })
+      void fetch('/api/public/photo-retention', { cache: 'no-store' })
         .then((res) => (res.ok ? res.json() : null))
         .then((settingsData) => {
           if (cancelled || !settingsData?.photoRetentionDays || !cleanId) return;
