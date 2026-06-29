@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
     root: frontendRoot,
   },
   outputFileTracingRoot: frontendRoot,
+  // Avoid SWC/webpack worker hangs on macOS during pack builds.
+  experimental: {
+    webpackBuildWorker: false,
+  },
 };
 
 export default nextConfig;

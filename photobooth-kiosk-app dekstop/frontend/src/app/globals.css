@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@source "../**/*.{js,ts,jsx,tsx,mdx}";
+@source not "../.build-quarantine-*/**";
+@source not "../.next*/**";
 
 @theme inline {
   --font-sans: var(--font-sans), ui-sans-serif, system-ui;

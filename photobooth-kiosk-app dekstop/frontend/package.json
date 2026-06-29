@@ -7,18 +7,27 @@
   "main": "main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "clean:build": "node scripts/ensure-next-build-ready.js --force",
+    "prebuild": "node scripts/ensure-next-build-ready.js",
     "desktop": "concurrently \"next dev -p 3001\" \"wait-on http://localhost:3001 && electron .\"",
     "desktop:prod": "concurrently \"next start -p 3001\" \"wait-on http://localhost:3001 && electron .\"",
     "stage": "node scripts/stage-pack.js",
-    "pack:dir": "npm run stage && electron-builder --mac dir",
+    "stage:fast": "node scripts/stage-pack.js --fast",
+    "pack:dir": "bash scripts/pack-dir.sh --fast",
+    "pack:dir:fast": "bash scripts/pack-dir.sh --fast",
+    "pack:dir:clean": "bash scripts/pack-dir.sh --clean",
     "pack:mac": "npm run stage && electron-builder --mac",
     "pack:win": "npm run stage && electron-builder --win",
     "pack:win:dir": "npm run stage && electron-builder --win dir",
+    "pack:win:dir:fast": "npm run stage:fast && electron-builder --win dir",
     "pack:win:portable": "npm run stage && electron-builder --win portable",
     "pack": "npm run pack:mac"
+  },
+  "engines": {
+    "node": ">=20.9.0 <=24.x"
   },
   "dependencies": {
     "framer-motion": "^12.38.0",
