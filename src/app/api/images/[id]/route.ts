@@ -13,6 +13,7 @@ import {
   uploadAssetBuffer,
   getSupabaseAdmin,
 } from '@/lib/session-video-storage';
+import { getGlobalPhotoRetentionDays } from '@/lib/photo-retention';
 
 const BUCKET_NAME = 'photobooth-images';
 
@@ -38,14 +39,7 @@ export async function GET(
   if (!isNaN(timestamp) && timestamp > 1000000000000 && timestamp < 2500000000000) {
     let retentionDays = 7;
     try {
-      const prismaModule = await import('@/lib/prisma');
-      const prisma = prismaModule.default;
-      const setting = await prisma.systemSetting.findFirst({
-        select: { photoRetentionDays: true }
-      });
-      if (setting) {
-        retentionDays = setting.photoRetentionDays;
-      }
+      retentionDays = await getGlobalPhotoRetentionDays();
     } catch (e) {
       console.error('Error fetching retention setting:', e);
     }

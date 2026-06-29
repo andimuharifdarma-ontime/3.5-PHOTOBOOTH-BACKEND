@@ -7,6 +7,10 @@ import { ALL_ARTISTIC_FILTERS } from '@/lib/filters';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { settingsSchema, formatZodErrors } from '@/lib/validations/schemas';
 import { createClient } from '@supabase/supabase-js';
+import {
+    getGlobalPhotoRetentionDays,
+    setGlobalPhotoRetentionDays,
+} from '@/lib/photo-retention';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,6 +74,7 @@ export async function GET(request: Request) {
             }
 
             setting.isPaymentEnabled = adminUser.isPaymentEnabled;
+            setting.photoRetentionDays = await getGlobalPhotoRetentionDays();
             return NextResponse.json(setting);
         }
 
@@ -157,6 +162,7 @@ export async function GET(request: Request) {
         // Force user-level payment setting so the dashboard and photobooth read the correct access state
         if (setting) {
             setting.isPaymentEnabled = isPaymentEnabledUserLevel;
+            setting.photoRetentionDays = await getGlobalPhotoRetentionDays();
         }
 
         return NextResponse.json(setting);
@@ -196,11 +202,16 @@ export async function POST(request: Request) {
             where: { adminUserId: settingsAdminId }
         });
 
-        // Non-ADMIN users cannot change isPaymentEnabled at all.
-        // Strip it from the parsed data so it never triggers a change.
+        // Non-ADMIN users cannot change payment or global photo retention.
         if (userRole !== 'ADMIN') {
             delete (parsed.data as any).isPaymentEnabled;
+            delete (parsed.data as any).photoRetentionDays;
         }
+
+        const retentionDaysToApply =
+            userRole === 'ADMIN' && typeof parsed.data.photoRetentionDays === 'number'
+                ? parsed.data.photoRetentionDays
+                : undefined;
 
         const {
             isPaymentEnabled,
@@ -223,7 +234,6 @@ export async function POST(request: Request) {
             isResultTimerEnabled,
             enabledFilters,
             isGoogleDriveBackupEnabled,
-            photoRetentionDays,
             isKioskLocked,
             kioskThemePreset,
             kioskAccentColor,
@@ -276,7 +286,6 @@ export async function POST(request: Request) {
                 isResultTimerEnabled: isResultTimerEnabled ?? true,
                 enabledFilters: enabledFilters ?? ALL_ARTISTIC_FILTERS.map((f) => f.id),
                 isGoogleDriveBackupEnabled: isGoogleDriveBackupEnabled ?? true,
-                photoRetentionDays: photoRetentionDays ?? 7,
                 isKioskLocked: isKioskLocked ?? false,
                 kioskThemePreset: kioskThemePreset ?? 'default',
                 kioskAccentColor: kioskAccentColor !== undefined ? kioskAccentColor : null,
@@ -321,7 +330,6 @@ export async function POST(request: Request) {
                 isResultTimerEnabled: isResultTimerEnabled ?? true,
                 enabledFilters: enabledFilters ?? ALL_ARTISTIC_FILTERS.map((f) => f.id),
                 isGoogleDriveBackupEnabled: isGoogleDriveBackupEnabled ?? true,
-                photoRetentionDays: photoRetentionDays ?? 7,
                 isKioskLocked: isKioskLocked ?? false,
                 kioskThemePreset: kioskThemePreset ?? 'default',
                 kioskAccentColor: kioskAccentColor !== undefined ? kioskAccentColor : null,
@@ -365,6 +373,11 @@ export async function POST(request: Request) {
             resourceId: updatedSetting.id,
             details: `Updated settings for user ${settingsAdminId}`,
         }, request);
+
+        if (retentionDaysToApply !== undefined) {
+            await setGlobalPhotoRetentionDays(retentionDaysToApply);
+        }
+        (updatedSetting as any).photoRetentionDays = await getGlobalPhotoRetentionDays();
 
         return NextResponse.json(updatedSetting);
     } catch (error: any) {
