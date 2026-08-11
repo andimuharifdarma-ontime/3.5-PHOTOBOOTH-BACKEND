@@ -21,6 +21,7 @@ import logging
 from collections import deque
 
 import camera_config
+import digicamcontrol
 
 try:
     from PIL import Image, ImageDraw
@@ -37,6 +38,7 @@ camera = None
 context = None
 camera_connection_error: str | None = None
 camera_model: str | None = None
+camera_backend: str = "none"
 capture_lock = threading.Lock()
 
 # Buffer rolling untuk Live Photo (tampung hingga 15 detik pada ~20 FPS)
@@ -193,7 +195,7 @@ def _parse_camera_model(summary_text: str) -> str | None:
 
 
 def release_camera():
-    global camera, context, camera_connected, camera_model
+    global camera, context, camera_connected, camera_model, camera_backend
     if camera is not None:
         try:
             camera.exit(context)
@@ -203,14 +205,29 @@ def release_camera():
     context = None
     camera_connected = False
     camera_model = None
+    camera_backend = "none"
 
 
 def init_camera() -> bool:
-    global camera, context, camera_connected, camera_connection_error, camera_model
+    global camera, context, camera_connected, camera_connection_error, camera_model, camera_backend
     camera_connection_error = None
+    camera_backend = "none"
+
+    if platform.system() == "Windows" and digicamcontrol.is_available():
+        release_camera()
+        camera_connected = True
+        camera_backend = "digicamcontrol"
+        camera_model = digicamcontrol.get_camera_name() or "digiCamControl"
+        digicamcontrol.start_live_view()
+        logging.info("Kamera terhubung via digiCamControl (%s)", camera_model)
+        return True
 
     if not GP_AVAILABLE:
-        camera_connection_error = "Library gphoto2 tidak tersedia."
+        camera_connection_error = (
+            "Kamera belum terhubung. Di Windows, buka digiCamControl dan pastikan http://localhost:5513 aktif."
+            if platform.system() == "Windows"
+            else "Library gphoto2 tidak tersedia."
+        )
         release_camera()
         return False
 
@@ -255,19 +272,22 @@ def init_camera() -> bool:
 
 
 def camera_status_payload() -> dict:
+    dcc_available = platform.system() == "Windows" and digicamcontrol.is_available()
     if camera_connected:
         mode = "live"
-    elif GP_AVAILABLE:
+    elif GP_AVAILABLE or dcc_available:
         mode = "simulation"
     else:
         mode = "unavailable"
 
     return {
         "camera_connected": camera_connected,
-        "gphoto2_available": GP_AVAILABLE,
+        "gphoto2_available": GP_AVAILABLE or dcc_available,
         "camera_model": camera_model,
         "connection_error": camera_connection_error,
         "mode": mode,
+        "backend": camera_backend,
+        "digicamcontrol": dcc_available,
     }
 
 @asynccontextmanager
@@ -372,6 +392,12 @@ def put_camera_settings(
 
 def get_live_view_frame():
     """Mengambil satu frame dari kamera untuk Live View."""
+    if camera_backend == "digicamcontrol":
+        frame = digicamcontrol.get_live_view_frame()
+        if frame:
+            return frame
+        return generate_simulated_frame()
+
     if not camera_connected or not GP_AVAILABLE:
         return generate_simulated_frame()
     
@@ -421,6 +447,39 @@ def capture_photo(duration: float = 5.0):
     frames_snapshot = [f for f in list(live_view_buffer) if isinstance(f, tuple) and f[0] >= cutoff_time]
     timestamp = int(current_time)
     
+    if camera_backend == "digicamcontrol":
+        save_dir = os.path.join(os.getcwd(), "captured_photos")
+        os.makedirs(save_dir, exist_ok=True)
+        try:
+            captured_path = digicamcontrol.capture_to_file(save_dir)
+            filename_png = f"shot_{timestamp}.png"
+            local_path_png = os.path.join(save_dir, filename_png)
+            if PIL_AVAILABLE:
+                img = Image.open(captured_path)
+                img.save(local_path_png, format="PNG")
+                try:
+                    if os.path.abspath(captured_path) != os.path.abspath(local_path_png):
+                        os.remove(captured_path)
+                except Exception:
+                    pass
+            else:
+                local_path_png = captured_path
+                filename_png = os.path.basename(captured_path)
+
+            filename_mp4 = f"shot_{timestamp}.mp4"
+            local_path_mp4 = os.path.join(save_dir, filename_mp4)
+            save_live_photo(frames_snapshot, local_path_mp4)
+            return {
+                "status": "success",
+                "message": "Jepretan digiCamControl berhasil.",
+                "filename": filename_png,
+                "live_photo": filename_mp4,
+                "local_path": local_path_png,
+            }
+        except Exception as exc:
+            logging.error("Gagal capture digiCamControl: %s", exc)
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     if not camera_connected or not GP_AVAILABLE:
         # Simulasi Capture
         logging.info("Simulasi Capture berjalan...")

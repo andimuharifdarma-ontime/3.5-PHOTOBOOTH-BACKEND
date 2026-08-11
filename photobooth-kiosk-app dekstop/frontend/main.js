@@ -165,6 +165,46 @@ function forkNodeService(name, modulePath, options) {
   return child;
 }
 
+function findDigiCamControl() {
+  const candidates = [
+    process.env.DIGICAMCONTROL_EXE,
+    "C:\\Program Files (x86)\\digiCamControl\\CameraControl.exe",
+    "C:\\Program Files\\digiCamControl\\CameraControl.exe",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function ensureDigiCamControlRunning() {
+  if (process.platform !== "win32") return;
+
+  const exe = findDigiCamControl();
+  if (!exe) {
+    console.warn("digiCamControl tidak ditemukan. Live view kamera Windows membutuhkan CameraControl.exe");
+    return;
+  }
+
+  try {
+    execSync('tasklist /FI "IMAGENAME eq CameraControl.exe"', { windowsHide: true, stdio: "pipe" });
+  } catch {
+    /* continue and try start */
+  }
+
+  try {
+    spawn(exe, [], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+    }).unref();
+    console.log("Started digiCamControl:", exe);
+  } catch (error) {
+    console.warn("Gagal menjalankan digiCamControl:", error.message);
+  }
+}
+
 function spawnCameraService(cameraDir, pythonBin) {
   const uvicornArgs = [
     "-m",
@@ -459,6 +499,8 @@ async function startPackagedServices() {
     cwd: nextDir,
     env: serviceEnv({ PORT: "3001", HOSTNAME: "127.0.0.1" }),
   });
+
+  ensureDigiCamControlRunning();
 
   const pythonBin = resolvePython(cameraDir);
   spawnCameraService(cameraDir, pythonBin);
