@@ -3,6 +3,7 @@ import { getGlobalPhotoRetentionDays } from '@/lib/photo-retention';
 
 export const CLEANUP_BUCKET_NAME = 'photobooth-images';
 export const CLEANUP_FOLDERS = ['images', 'live-photos'] as const;
+const LIST_PAGE_SIZE = 1000;
 
 export function getCleanupSupabase(): SupabaseClient {
   return createClient(
@@ -16,6 +17,39 @@ export async function getPhotoRetentionDays(): Promise<number> {
   return getGlobalPhotoRetentionDays();
 }
 
+/** Parse session timestamp embedded in photo filename (same logic as /api/images/[id]). */
+export function parseTimestampFromFileName(fileName: string): number | null {
+  const baseName = fileName.replace(/\.[^.]+$/, '');
+  const parts = baseName.split('-');
+  const timestamp = parseInt(parts[parts.length - 1], 10);
+  if (isNaN(timestamp) || timestamp <= 1_000_000_000_000 || timestamp >= 2_500_000_000_000) {
+    return null;
+  }
+  return timestamp;
+}
+
+export function isStorageFileExpired(
+  fileName: string,
+  createdAt: string | null | undefined,
+  retentionDays: number,
+  nowMs: number = Date.now(),
+): boolean {
+  const limitMs = retentionDays * 24 * 60 * 60 * 1000;
+  const embeddedTs = parseTimestampFromFileName(fileName);
+
+  if (embeddedTs != null) {
+    return nowMs - embeddedTs > limitMs;
+  }
+
+  if (createdAt) {
+    const cutoff = new Date(nowMs);
+    cutoff.setDate(cutoff.getDate() - retentionDays);
+    return new Date(createdAt) < cutoff;
+  }
+
+  return false;
+}
+
 export type CleanupResult = {
   success: boolean;
   deleted: number;
@@ -27,12 +61,47 @@ export type CleanupResult = {
   message?: string;
 };
 
+async function listAllFilesInFolder(
+  supabase: SupabaseClient,
+  folder: string,
+): Promise<Array<{ name: string; created_at?: string }>> {
+  const all: Array<{ name: string; created_at?: string }> = [];
+  let offset = 0;
+
+  while (true) {
+    const { data: files, error } = await supabase.storage
+      .from(CLEANUP_BUCKET_NAME)
+      .list(folder, {
+        limit: LIST_PAGE_SIZE,
+        offset,
+        sortBy: { column: 'created_at', order: 'asc' },
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!files?.length) break;
+
+    for (const file of files) {
+      if (file.name === '.emptyFolderPlaceholder') continue;
+      all.push({ name: file.name, created_at: file.created_at });
+    }
+
+    if (files.length < LIST_PAGE_SIZE) break;
+    offset += LIST_PAGE_SIZE;
+  }
+
+  return all;
+}
+
 export async function cleanupExpiredPhotos(options?: {
   folders?: readonly string[];
 }): Promise<CleanupResult> {
   const folders = options?.folders ?? CLEANUP_FOLDERS;
   const retentionDays = await getPhotoRetentionDays();
-  const cutoffDate = new Date();
+  const nowMs = Date.now();
+  const cutoffDate = new Date(nowMs);
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
   const supabase = getCleanupSupabase();
@@ -42,33 +111,26 @@ export async function cleanupExpiredPhotos(options?: {
   const folderResults: Record<string, { checked: number; deleted: number }> = {};
 
   for (const folder of folders) {
-    const { data: files, error: listError } = await supabase.storage
-      .from(CLEANUP_BUCKET_NAME)
-      .list(folder, {
-        limit: 1000,
-        sortBy: { column: 'created_at', order: 'asc' },
-      });
+    folderResults[folder] = { checked: 0, deleted: 0 };
 
-    if (listError) {
+    let files: Array<{ name: string; created_at?: string }>;
+    try {
+      files = await listAllFilesInFolder(supabase, folder);
+    } catch (listError) {
       console.error(`List error for folder ${folder}:`, listError);
       continue;
     }
 
-    if (!files || files.length === 0) {
-      folderResults[folder] = { checked: 0, deleted: 0 };
-      continue;
-    }
+    if (files.length === 0) continue;
 
     totalChecked += files.length;
+    folderResults[folder].checked = files.length;
 
-    const expiredFiles = files.filter((file) => {
-      if (!file.created_at) return false;
-      return new Date(file.created_at) < cutoffDate;
-    });
+    const expiredFiles = files.filter((file) =>
+      isStorageFileExpired(file.name, file.created_at, retentionDays, nowMs),
+    );
 
     totalExpired += expiredFiles.length;
-    folderResults[folder] = { checked: files.length, deleted: 0 };
-
     if (expiredFiles.length === 0) continue;
 
     const paths = expiredFiles.map((f) => `${folder}/${f.name}`);

@@ -8,9 +8,10 @@ import { logAuditEvent } from '@/lib/audit-logger';
 import { settingsSchema, formatZodErrors } from '@/lib/validations/schemas';
 import { createClient } from '@supabase/supabase-js';
 import {
-    getGlobalPhotoRetentionDays,
-    setGlobalPhotoRetentionDays,
+  getGlobalPhotoRetentionDays,
+  setGlobalPhotoRetentionDays,
 } from '@/lib/photo-retention';
+import { cleanupExpiredPhotos } from '@/lib/cleanup-photos';
 import {
     collectBgImageUrls,
     normalizeKioskScreenBgImages,
@@ -436,6 +437,10 @@ export async function POST(request: Request) {
 
         if (retentionDaysToApply !== undefined) {
             await setGlobalPhotoRetentionDays(retentionDaysToApply);
+            // Hapus file yang sudah melewati retensi baru segera setelah pengaturan disimpan
+            void cleanupExpiredPhotos().catch((err) =>
+                console.error('Post-retention cleanup failed:', err),
+            );
         }
         (updatedSetting as any).photoRetentionDays = await getGlobalPhotoRetentionDays();
 

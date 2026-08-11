@@ -11,7 +11,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const result = await cleanupExpiredPhotos({ folders: ['images'] });
+    const result = await cleanupExpiredPhotos();
 
     return NextResponse.json({
       success: result.success,

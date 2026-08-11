@@ -6,6 +6,7 @@ import {
   getGlobalPhotoRetentionDays,
   setGlobalPhotoRetentionDays,
 } from '@/lib/photo-retention';
+import { cleanupExpiredPhotos } from '@/lib/cleanup-photos';
 
 /**
  * Legacy API untuk durasi auto-delete foto — sekarang memakai retention global.
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest) {
     }
 
     const applied = await setGlobalPhotoRetentionDays(photoRetentionDays);
+    void cleanupExpiredPhotos().catch((err) =>
+      console.error('Post-retention cleanup failed:', err),
+    );
 
     await logAuditEvent(
       {

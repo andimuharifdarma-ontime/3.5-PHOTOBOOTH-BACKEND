@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Download, RefreshCw, FolderDown, Image as ImageIcon, Video, FileJson, Play, Trash2, Clock, Cloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PaginationBar from '@/components/ui/PaginationBar';
+import { isStorageFileExpired } from '@/lib/cleanup-photos';
 
 type SupabaseFile = {
     name: string;
@@ -76,6 +77,16 @@ export default function CloudGalleryPage() {
                 if (data.photoRetentionDays) setPhotoRetentionDays(data.photoRetentionDays);
             })
             .catch(console.error);
+
+        // Jalankan cleanup otomatis saat halaman dibuka (non-blocking)
+        fetch('/api/admin/cleanup-storage', { method: 'POST' })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.deleted > 0) {
+                    void fetchFiles(page);
+                }
+            })
+            .catch(console.error);
     }, [page]);
 
     const handleCleanup = async () => {
@@ -97,6 +108,10 @@ export default function CloudGalleryPage() {
 
     const categorizedFiles = () => {
         return files.filter(f => {
+            if (isStorageFileExpired(f.name, f.created_at, photoRetentionDays)) {
+                return false;
+            }
+
             const ext = f.name.split('.').pop()?.toLowerCase() || '';
             const isOrig = f.name.includes('-orig');
             const isLive = f.name.includes('-live');
