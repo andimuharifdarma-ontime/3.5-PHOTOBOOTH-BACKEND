@@ -50,6 +50,7 @@ model SystemSetting {
   kioskButtonTextColor         String?
   kioskBgImageUrl              String?
   kioskBgImageOpacity          Float?     @default(1.0)
+  kioskScreenBgImages          Json?      @default("{}")
   kioskShowBgDots              Boolean    @default(true)
   kioskShowBrandName           Boolean    @default(true)
   kioskShowBrandSubtitle       Boolean    @default(false)

@@ -85,6 +85,7 @@ export class KioskService {
           kioskTextColor: null,
           kioskBgImageUrl: null,
           kioskBgImageOpacity: 1.0,
+          kioskScreenBgImages: {},
           kioskShowBgDots: true,
           kioskShowBrandName: true,
           kioskShowBrandSubtitle: false,
@@ -335,7 +336,11 @@ export class KioskService {
         amount: totalPrice,
         invoice_number: invoiceNumber,
         currency: 'IDR',
+        language: 'ID',
+        auto_redirect: true,
+        disable_retry_payment: true,
         callback_url: `${kioskBaseUrl}/payment-success?orderId=${newOrder.id}&qty=${quantity}`,
+        callback_url_result: `${kioskBaseUrl}/payment-success?orderId=${newOrder.id}&qty=${quantity}`,
         failed_url: `${kioskBaseUrl}/checkout?orderId=${newOrder.id}&qty=${quantity}&status=failed`,
         return_url: `${kioskBaseUrl}/checkout?orderId=${newOrder.id}&qty=${quantity}&status=back`,
         line_items: [
@@ -411,7 +416,11 @@ export class KioskService {
     };
   }
 
-  async getPaymentStatus(apiKey: string | undefined, orderId: string) {
+  async getPaymentStatus(
+    apiKey: string | undefined,
+    orderId: string,
+    syncDoku = true,
+  ) {
     const adminUser = await this.getAdminUserByApiKey(apiKey);
 
     const order = await this.prisma.printOrder.findUnique({
@@ -426,7 +435,10 @@ export class KioskService {
       throw new UnauthorizedException('Forbidden');
     }
 
-    if (order.paymentStatus === 'pending' || order.paymentStatus === 'failed') {
+    if (
+      syncDoku &&
+      (order.paymentStatus === 'pending' || order.paymentStatus === 'failed')
+    ) {
       const clientId = (process.env.DOKU_CLIENT_ID || '').trim();
       const secretKey = (process.env.DOKU_SECRET_KEY || '').trim();
 

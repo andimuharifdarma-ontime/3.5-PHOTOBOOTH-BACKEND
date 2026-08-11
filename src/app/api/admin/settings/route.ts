@@ -11,6 +11,10 @@ import {
     getGlobalPhotoRetentionDays,
     setGlobalPhotoRetentionDays,
 } from '@/lib/photo-retention';
+import {
+    collectBgImageUrls,
+    normalizeKioskScreenBgImages,
+} from '@/lib/kiosk-screen-bg';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -148,6 +152,7 @@ export async function GET(request: Request) {
                     kioskButtonTextColor: null,
                     kioskBgImageUrl: null,
                     kioskBgImageOpacity: 1.0,
+                    kioskScreenBgImages: {},
                     kioskShowBgDots: true,
                     kioskShowBrandName: true,
                     kioskShowBrandSubtitle: false,
@@ -163,6 +168,17 @@ export async function GET(request: Request) {
         if (setting) {
             setting.isPaymentEnabled = isPaymentEnabledUserLevel;
             setting.photoRetentionDays = await getGlobalPhotoRetentionDays();
+            const normalizedScreenBgs = normalizeKioskScreenBgImages(
+                (setting as any).kioskScreenBgImages,
+                (setting as any).kioskBgImageUrl,
+                (setting as any).kioskBgImageOpacity,
+            );
+            (setting as any).kioskScreenBgImages = normalizedScreenBgs;
+            const launcherBg = normalizedScreenBgs.launcher;
+            if (launcherBg?.url) {
+                (setting as any).kioskBgImageUrl = launcherBg.url;
+                (setting as any).kioskBgImageOpacity = launcherBg.opacity;
+            }
         }
 
         return NextResponse.json(setting, {
@@ -252,6 +268,7 @@ export async function POST(request: Request) {
             kioskButtonTextColor,
             kioskBgImageUrl,
             kioskBgImageOpacity,
+            kioskScreenBgImages,
             kioskShowBgDots,
             kioskShowBrandName,
             kioskShowBrandSubtitle,
@@ -265,6 +282,29 @@ export async function POST(request: Request) {
         let validatedCaptureTimer = captureTimer ?? 5;
         if (validatedCaptureTimer < 5) validatedCaptureTimer = 5;
         if (validatedCaptureTimer > 10) validatedCaptureTimer = 10;
+
+        const normalizedScreenBgImages =
+            kioskScreenBgImages !== undefined
+                ? normalizeKioskScreenBgImages(kioskScreenBgImages)
+                : kioskBgImageUrl !== undefined
+                    ? normalizeKioskScreenBgImages({
+                        ...normalizeKioskScreenBgImages((currentSetting as any)?.kioskScreenBgImages),
+                        launcher: {
+                            url: kioskBgImageUrl ?? null,
+                            opacity: kioskBgImageOpacity ?? 1,
+                        },
+                    })
+                    : undefined;
+
+        const syncedLauncherBg = normalizedScreenBgImages?.launcher;
+        const legacyBgImageUrl =
+            syncedLauncherBg?.url !== undefined
+                ? syncedLauncherBg.url
+                : kioskBgImageUrl;
+        const legacyBgImageOpacity =
+            syncedLauncherBg?.opacity !== undefined
+                ? syncedLauncherBg.opacity
+                : kioskBgImageOpacity;
 
         // @ts-ignore
         const updatedSetting = await (prisma.systemSetting as any).upsert({
@@ -307,8 +347,9 @@ export async function POST(request: Request) {
                 ...(kioskTextColor !== undefined && { kioskTextColor }),
                 ...(kioskButtonColor !== undefined && { kioskButtonColor }),
                 ...(kioskButtonTextColor !== undefined && { kioskButtonTextColor }),
-                ...(kioskBgImageUrl !== undefined && { kioskBgImageUrl }),
-                ...(kioskBgImageOpacity !== undefined && { kioskBgImageOpacity }),
+                ...(kioskBgImageUrl !== undefined && { kioskBgImageUrl: legacyBgImageUrl }),
+                ...(kioskBgImageOpacity !== undefined && { kioskBgImageOpacity: legacyBgImageOpacity }),
+                ...(normalizedScreenBgImages !== undefined && { kioskScreenBgImages: normalizedScreenBgImages }),
                 ...(kioskShowBgDots !== undefined && { kioskShowBgDots }),
                 ...(kioskShowBrandName !== undefined && { kioskShowBrandName }),
                 ...(kioskShowBrandSubtitle !== undefined && { kioskShowBrandSubtitle }),
@@ -351,8 +392,9 @@ export async function POST(request: Request) {
                 kioskTextColor: kioskTextColor !== undefined ? kioskTextColor : null,
                 kioskButtonColor: kioskButtonColor !== undefined ? kioskButtonColor : null,
                 kioskButtonTextColor: kioskButtonTextColor !== undefined ? kioskButtonTextColor : null,
-                kioskBgImageUrl: kioskBgImageUrl !== undefined ? kioskBgImageUrl : null,
-                kioskBgImageOpacity: kioskBgImageOpacity !== undefined ? kioskBgImageOpacity : 1.0,
+                kioskBgImageUrl: legacyBgImageUrl !== undefined ? legacyBgImageUrl : null,
+                kioskBgImageOpacity: legacyBgImageOpacity !== undefined ? legacyBgImageOpacity : 1.0,
+                kioskScreenBgImages: normalizedScreenBgImages ?? {},
                 kioskShowBgDots: kioskShowBgDots !== undefined ? kioskShowBgDots : true,
                 kioskShowBrandName: kioskShowBrandName !== undefined ? kioskShowBrandName : true,
                 kioskShowBrandSubtitle: kioskShowBrandSubtitle !== undefined ? kioskShowBrandSubtitle : false,
@@ -368,9 +410,18 @@ export async function POST(request: Request) {
             await deleteSupabaseFile((currentSetting as any).kioskLogoUrl);
         }
 
-        // Clean up old custom background files in Supabase storage to save space
-        if ((currentSetting as any)?.kioskBgImageUrl && (currentSetting as any).kioskBgImageUrl !== (updatedSetting as any).kioskBgImageUrl) {
-            await deleteSupabaseFile((currentSetting as any).kioskBgImageUrl);
+        const previousBgUrls = collectBgImageUrls(
+            (currentSetting as any)?.kioskScreenBgImages,
+            (currentSetting as any)?.kioskBgImageUrl,
+        );
+        const nextBgUrls = collectBgImageUrls(
+            (updatedSetting as any)?.kioskScreenBgImages,
+            (updatedSetting as any)?.kioskBgImageUrl,
+        );
+        for (const oldUrl of previousBgUrls) {
+            if (!nextBgUrls.includes(oldUrl)) {
+                await deleteSupabaseFile(oldUrl);
+            }
         }
 
         // Audit log

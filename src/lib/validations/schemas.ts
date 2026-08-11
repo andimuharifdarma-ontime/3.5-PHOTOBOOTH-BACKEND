@@ -108,6 +108,13 @@ export const settingsSchema = z.object({
   kioskButtonTextColor: z.string().nullable().optional(),
   kioskBgImageUrl: z.string().nullable().optional(),
   kioskBgImageOpacity: z.number().min(0).max(1).nullable().optional(),
+  kioskScreenBgImages: z.record(
+    z.string(),
+    z.object({
+      url: z.string().nullable(),
+      opacity: z.number().min(0).max(1),
+    }),
+  ).optional(),
   kioskShowBgDots: z.boolean().optional(),
   kioskShowBrandName: z.boolean().optional(),
   kioskShowBrandSubtitle: z.boolean().optional(),

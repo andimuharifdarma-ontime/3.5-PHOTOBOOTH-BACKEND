@@ -14,6 +14,7 @@ export interface KioskSettingsRaw {
   kioskButtonTextColor?: string | null;
   kioskBgImageUrl?: string | null;
   kioskBgImageOpacity?: number | null;
+  kioskScreenBgImages?: Record<string, { url: string | null; opacity: number }> | null;
   kioskShowBgDots?: boolean | null;
   kioskShowBrandName?: boolean | null;
   kioskShowBrandSubtitle?: boolean | null;
@@ -325,6 +326,23 @@ export function getPresetCardContentColors(
       muted: withAlpha(theme.buttonTextColor, "b3"),
       heading: theme.buttonTextColor,
       accent: theme.buttonTextColor,
+    };
+  }
+
+  const cardBg = card.style.backgroundColor;
+  const cardSurfaceLight =
+    theme.isLight ||
+    (typeof cardBg === "string" &&
+      cardBg.startsWith("#") &&
+      isLightColor(cardBg));
+
+  // Pastel / light preset cards — keep body text dark (e.g. pop_art side panel).
+  if (cardSurfaceLight) {
+    return {
+      text: theme.textColorHex,
+      muted: theme.subtextColorHex,
+      heading: theme.textColorHex,
+      accent: theme.accent,
     };
   }
 
