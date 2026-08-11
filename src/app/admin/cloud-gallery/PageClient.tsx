@@ -8,6 +8,7 @@ import PaginationBar from '@/components/ui/PaginationBar';
 type SupabaseFile = {
     name: string;
     url: string;
+    thumbUrl?: string;
     created_at: string;
     folder?: string;
 };
@@ -296,18 +297,24 @@ export default function CloudGalleryPage() {
                                     <div className="aspect-[3/4] relative bg-black/50 flex items-center justify-center overflow-hidden">
                                         {!isVideo ? (
                                             <img 
-                                                src={file.url} 
-                                                alt={file.name} 
-                                                className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" 
+                                                src={file.thumbUrl || file.url} 
+                                                alt={file.name}
+                                                loading="lazy"
+                                                decoding="async"
+                                                className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    if (target.src !== file.url) target.src = file.url;
+                                                }}
                                             />
                                         ) : (
                                             <div className="relative w-full h-full">
                                                 <video 
                                                     src={file.url} 
                                                     className="object-cover w-full h-full opacity-70"
-                                                    autoPlay
                                                     muted
-                                                    loop
+                                                    playsInline
+                                                    preload="metadata"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center">
                                                     <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm border border-white/20">

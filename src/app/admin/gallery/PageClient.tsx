@@ -130,7 +130,7 @@ export default function GalleryPage() {
         document.body.removeChild(a);
     };
 
-    if (loading) {
+    if (loading && items.length === 0) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#FDFBF7]">
                 <Loader2 className="w-8 h-8 animate-spin text-[#A68B67]" />
@@ -183,11 +183,19 @@ export default function GalleryPage() {
                             {/* Preview Area (Compiled Image) */}
                             <div className="relative aspect-[3/4] bg-[#EAE1D3]/30 overflow-hidden">
                                 <img 
-                                    src={`/api/images/${item.sessionId}`} 
+                                    src={`/api/images/${item.sessionId}?thumb=1`}
                                     alt="Compiled Picture"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-contain"
                                     onError={(e) => {
                                         const target = e.target as HTMLImageElement;
+                                        const fullSrc = `/api/images/${item.sessionId}`;
+                                        if (!target.dataset.fallback) {
+                                            target.dataset.fallback = '1';
+                                            target.src = fullSrc;
+                                            return;
+                                        }
                                         target.style.display = 'none';
                                         target.parentElement!.innerHTML = '<div class="absolute inset-0 flex flex-col items-center justify-center text-black/30 text-xs"><p>Gambar tidak tersedia</p><p>(Kedaluwarsa)</p></div>';
                                     }}

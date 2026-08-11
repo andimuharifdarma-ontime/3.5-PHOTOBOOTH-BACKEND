@@ -75,6 +75,10 @@ export async function GET(request: Request) {
             page,
             limit,
             totalPages: Math.max(1, Math.ceil(total / limit)),
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+            },
         });
 
     } catch (error) {

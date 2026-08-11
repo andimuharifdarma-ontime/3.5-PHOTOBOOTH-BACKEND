@@ -3,8 +3,8 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
+import { isAnimatedGif, optimizeImageUpload } from '@/lib/image-optimize';
 
-// Use service role key for server-side uploads (bypasses RLS)
 function getSupabaseClient() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,7 +26,6 @@ export async function POST(request: Request) {
 
         const user = session.user as any;
 
-        // Find user to check explicit canManageThemes permission if not in session
         const dbUser = await prisma.adminUser.findUnique({
             where: { email: user.email }
         });
@@ -48,10 +47,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
-        // Validate file type & size
-        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+        const MAX_SIZE = 15 * 1024 * 1024;
         if (file.size > MAX_SIZE) {
-            return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+            return NextResponse.json({ error: 'File too large (max 15MB)' }, { status: 400 });
         }
 
         const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -59,34 +57,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid file type. Only PNG, JPG, WEBP, and GIF are allowed.' }, { status: 400 });
         }
 
-        // Generate unique filename & sanitize extension
         const timestamp = Date.now();
-        const rawExt = file.name.split('.').pop()?.toLowerCase() || '';
-        const safeExtMap: Record<string, string> = {
-            'png': 'png',
-            'jpg': 'jpg',
-            'jpeg': 'jpg',
-            'webp': 'webp',
-            'gif': 'gif'
-        };
-
-        const ext = safeExtMap[rawExt];
-        if (!ext) {
-            return NextResponse.json({ error: 'Unsupported file extension' }, { status: 400 });
-        }
-
-        const filename = `${timestamp}.${ext}`;
-        const storagePath = `uploads/${filename}`;
-
-        // Upload to Supabase Storage
         const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
+        const inputBuffer = Buffer.from(bytes);
 
-        const { data, error: uploadError } = await supabase.storage
+        const optimized = await optimizeImageUpload(inputBuffer, file.type);
+        const baseName = `${timestamp}`;
+        const mainPath = `uploads/${baseName}.${optimized.main.ext}`;
+        const thumbPath = optimized.thumb ? `uploads/thumbs/${baseName}.${optimized.thumb.ext}` : null;
+
+        const { error: uploadError } = await supabase.storage
             .from(BUCKET_NAME)
-            .upload(storagePath, buffer, {
-                contentType: file.type,
+            .upload(mainPath, optimized.main.buffer, {
+                contentType: optimized.main.contentType,
                 upsert: true,
+                cacheControl: '31536000',
             });
 
         if (uploadError) {
@@ -94,16 +79,34 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-            .from(BUCKET_NAME)
-            .getPublicUrl(storagePath);
+        let thumbUrl: string | null = null;
+        if (optimized.thumb && thumbPath) {
+            const { error: thumbError } = await supabase.storage
+                .from(BUCKET_NAME)
+                .upload(thumbPath, optimized.thumb.buffer, {
+                    contentType: optimized.thumb.contentType,
+                    upsert: true,
+                    cacheControl: '31536000',
+                });
 
+            if (!thumbError) {
+                const { data: thumbData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(thumbPath);
+                thumbUrl = thumbData.publicUrl;
+            } else {
+                console.warn('Thumb upload failed, main image still saved:', thumbError.message);
+            }
+        }
+
+        const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(mainPath);
         const url = urlData.publicUrl;
 
         return NextResponse.json({
             url,
-            filename,
+            thumbUrl,
+            filename: `${baseName}.${optimized.main.ext}`,
+            optimized: !isAnimatedGif(file.type),
+            originalSize: file.size,
+            uploadedSize: optimized.main.buffer.length,
         });
     } catch (error: any) {
         console.error('Upload failed:', error);

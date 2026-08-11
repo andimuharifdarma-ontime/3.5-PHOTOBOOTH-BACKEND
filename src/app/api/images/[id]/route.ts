@@ -14,11 +14,33 @@ import {
   getSupabaseAdmin,
 } from '@/lib/session-video-storage';
 import { getGlobalPhotoRetentionDays } from '@/lib/photo-retention';
+import { createThumbnailFromBuffer } from '@/lib/image-optimize';
 
 const BUCKET_NAME = 'photobooth-images';
 
 function getSupabase() {
   return getSupabaseAdmin();
+}
+
+async function resolveImageSourceUrl(
+  id: string,
+  isDownload: boolean,
+): Promise<string | null> {
+  const exts = getExtensionsForPhotoId(id);
+
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (token) {
+    try {
+      const blobUrl = await resolveBlobPhotoUrl(id, token, exts);
+      if (blobUrl) return blobUrl;
+    } catch { }
+  }
+
+  const supabase = getSupabase();
+  const directUrl = await resolveSupabasePhotoUrl(supabase, BUCKET_NAME, id, isDownload, exts);
+  if (directUrl) return directUrl;
+
+  return resolveSupabasePhotoUrlFromList(supabase, BUCKET_NAME, id, isDownload, exts);
 }
 
 export async function GET(
@@ -53,27 +75,33 @@ export async function GET(
   }
 
   const isDownload = req.nextUrl.searchParams.get('download') === '1';
-  const exts = getExtensionsForPhotoId(id);
+  const wantsThumb = req.nextUrl.searchParams.get('thumb') === '1';
 
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (token) {
-    try {
-      const blobUrl = await resolveBlobPhotoUrl(id, token, exts);
-      if (blobUrl) {
-        return NextResponse.redirect(blobUrl, 302);
+  if (wantsThumb && !id.includes('-live-') && !id.endsWith('.gif') && !id.includes('.gif')) {
+    const sourceUrl = await resolveImageSourceUrl(id, false);
+    if (sourceUrl) {
+      try {
+        const res = await fetch(sourceUrl);
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          const thumb = await createThumbnailFromBuffer(Buffer.from(arrayBuffer), 480);
+          return new NextResponse(new Uint8Array(thumb), {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/webp',
+              'Cache-Control': 'public, max-age=31536000, immutable',
+            },
+          });
+        }
+      } catch (e) {
+        console.error('Thumbnail generation failed, falling back to redirect:', e);
       }
-    } catch { }
+    }
   }
 
-  const supabase = getSupabase();
-  const directUrl = await resolveSupabasePhotoUrl(supabase, BUCKET_NAME, id, isDownload, exts);
-  if (directUrl) {
-    return NextResponse.redirect(directUrl, 307);
-  }
-
-  const listedUrl = await resolveSupabasePhotoUrlFromList(supabase, BUCKET_NAME, id, isDownload, exts);
-  if (listedUrl) {
-    return NextResponse.redirect(listedUrl, 307);
+  const sourceUrl = await resolveImageSourceUrl(id, isDownload);
+  if (sourceUrl) {
+    return NextResponse.redirect(sourceUrl, 307);
   }
 
   return new NextResponse('Not found', { status: 404 });
