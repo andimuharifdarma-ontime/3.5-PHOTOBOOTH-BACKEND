@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     imageSizes: [64, 128, 256, 384],
     deviceSizes: [640, 828, 1080],
   },
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+  },
   async headers() {
     return [
       // Security headers for all routes (CSP is now handled dynamically by middleware with nonces)
