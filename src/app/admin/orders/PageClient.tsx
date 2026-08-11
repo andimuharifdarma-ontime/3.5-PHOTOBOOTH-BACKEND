@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import OrderRow from '@/components/admin/orders/OrderRow';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import PaginationBar from '@/components/ui/PaginationBar';
@@ -174,7 +175,7 @@ export default function OrdersPage() {
         }
     };
 
-    if (loading) return <LoadingScreen message="Sinkronisasi Arsip Cetak..." />;
+    if (loading) return <AdminPageSkeleton variant="table" />;
 
     return (
         <div className="space-y-10 pb-20">

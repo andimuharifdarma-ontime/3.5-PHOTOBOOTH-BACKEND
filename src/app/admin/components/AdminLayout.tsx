@@ -9,6 +9,7 @@ import Sidebar from '@/components/admin/Sidebar';
 import MobileHeader from '@/components/admin/MobileHeader';
 import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import { useIsLgScreen } from '@/hooks/useIsLgScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -109,8 +110,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-[#A68B67] border-t-transparent rounded-full animate-spin" />
+            <div className="min-h-screen bg-[#FDFBF7] relative text-[#4A3F35]">
+                <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#A68B67_1px,transparent_1px)] [background-size:24px_24px]" />
+                <main className="min-h-screen lg:ml-72">
+                    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-10">
+                        <AdminPageSkeleton />
+                    </div>
+                </main>
             </div>
         );
     }
@@ -149,7 +155,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
 
             {/* Main Content */}
-            <main className={`min-h-screen transition-all duration-300 ease-in-out ${sidebarCollapsed && isLg ? 'lg:ml-20' : 'lg:ml-72'}`}>
+            <main className={`min-h-screen transition-[margin] duration-200 ease-out ${sidebarCollapsed && isLg ? 'lg:ml-20' : 'lg:ml-72'}`}>
                 <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                     {children}
                 </div>

@@ -27,6 +27,7 @@ import { useSession } from 'next-auth/react';
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import SettingCard from '@/components/admin/settings/SettingCard';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 
@@ -101,7 +102,7 @@ export default function SettingsPage() {
         }
     };
 
-    if (isLoading && !settings) return <LoadingScreen message="Sinkronisasi Sistem..." />;
+    if (isLoading && !settings) return <AdminPageSkeleton />;
 
     if (!settings) return (
         <div className="flex flex-col items-center justify-center h-[60vh] gap-6">

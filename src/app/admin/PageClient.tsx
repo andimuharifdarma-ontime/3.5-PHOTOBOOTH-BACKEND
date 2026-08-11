@@ -29,6 +29,7 @@ import { toast } from 'react-hot-toast';
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import StatCard from '@/components/admin/dashboard/StatCard';
 import CircularProgress from '@/components/admin/dashboard/CircularProgress';
 import type { DashboardStats } from '@/lib/admin-stats';
@@ -110,7 +111,7 @@ export default function AdminDashboard({ initialStats = null }: AdminDashboardPr
         }
     };
 
-    if (loading) return <LoadingScreen message="Menyiapkan Dashboard Studio..." />;
+    if (loading) return <AdminPageSkeleton variant="grid" />;
 
     const weeklyData = [15, 25, 20, 35, 30, 45, 40];
 

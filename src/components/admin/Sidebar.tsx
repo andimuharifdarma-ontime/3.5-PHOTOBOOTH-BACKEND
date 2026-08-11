@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import {
     LogOut,
     X,
@@ -21,6 +21,7 @@ import {
     Images,
 } from 'lucide-react';
 import { useIsLgScreen } from '@/hooks/useIsLgScreen';
+import { useAdminNavPrefetch } from '@/hooks/useAdminNavPrefetch';
 
 interface SidebarProps {
     session: any;
@@ -62,8 +63,13 @@ export default function Sidebar({
     setSidebarCollapsed,
 }: SidebarProps) {
     const isLg = useIsLgScreen();
+    const { prefetchRoute, prefetchAllRoutes } = useAdminNavPrefetch();
     /** Collapse mode is desktop-only; mobile drawer always shows full labels. */
     const collapsed = sidebarCollapsed && isLg;
+
+    useEffect(() => {
+        prefetchAllRoutes();
+    }, [prefetchAllRoutes]);
 
     const isActive = (href: string) => {
         if (href === '/admin') return pathname === '/admin';
@@ -200,28 +206,24 @@ export default function Sidebar({
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
+                                                prefetch
+                                                onMouseEnter={() => prefetchRoute(item.href)}
+                                                onFocus={() => prefetchRoute(item.href)}
                                                 onClick={() => setSidebarOpen(false)}
                                                 title={collapsed ? item.label : undefined}
-                                                className={`relative flex min-h-[44px] items-center rounded-sm transition-all duration-200 group
+                                                className={`relative flex min-h-[44px] items-center rounded-sm transition-colors duration-150 group
                                                     ${collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5 sm:gap-4 sm:px-4'}
-                                                    ${active ? 'text-white' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
+                                                    ${active ? 'bg-white/[0.05] text-white border-l-2 border-[#A68B67]' : 'text-white/40 hover:bg-white/[0.03] hover:text-white border-l-2 border-transparent'}
                                                 `}
                                             >
-                                                {active && (
-                                                    <motion.div
-                                                        layoutId="activeTab"
-                                                        className="absolute inset-0 rounded-sm border-l-2 border-[#A68B67] bg-white/[0.05]"
-                                                        transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-                                                    />
-                                                )}
-                                                <Icon className={`relative z-10 h-5 w-5 shrink-0 transition-all duration-200 sm:h-4 sm:w-4 ${active ? 'scale-110 text-[#A68B67]' : 'group-hover:text-[#A68B67]'}`} />
+                                                <Icon className={`relative z-10 h-5 w-5 shrink-0 transition-colors duration-150 sm:h-4 sm:w-4 ${active ? 'text-[#A68B67]' : 'group-hover:text-[#A68B67]'}`} />
                                                 {!collapsed && (
                                                     <>
                                                         <span className={`relative z-10 text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}>
                                                             {item.label}
                                                         </span>
                                                         {active && (
-                                                            <div className="relative z-10 ml-auto h-1 w-1 animate-pulse rounded-full bg-[#A68B67]" />
+                                                            <div className="relative z-10 ml-auto h-1 w-1 rounded-full bg-[#A68B67]" />
                                                         )}
                                                     </>
                                                 )}

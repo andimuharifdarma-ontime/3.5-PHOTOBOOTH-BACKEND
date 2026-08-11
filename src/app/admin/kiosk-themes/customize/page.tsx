@@ -1,8 +1,8 @@
 import dynamic from 'next/dynamic';
-import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 const PageClient = dynamic(() => import('./PageClient'), {
-  loading: () => <LoadingScreen message="Memuat Kiosk Customizer..." />,
+  loading: () => <AdminPageSkeleton />,
 });
 
 export default function Page() {

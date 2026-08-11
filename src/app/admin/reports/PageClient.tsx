@@ -25,6 +25,7 @@ import { toast } from 'react-hot-toast';
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import StatCardSmall from '@/components/ui/StatCardSmall';
 import FinancialBlueprint from '@/components/admin/reports/FinancialBlueprint';
 import FilterSection from '@/components/admin/reports/FilterSection';
@@ -326,7 +327,7 @@ export default function ReportsPage() {
 
     const loading = (viewMode === 'list' && usersLoading) || (reportsEnabled && reportsLoading && !data);
 
-    if (loading) return <LoadingScreen message="Menghitung Strategi..." />;
+    if (loading) return <AdminPageSkeleton />;
 
     if (viewMode === 'list' && isAdminOrKaryawan) {
         return (

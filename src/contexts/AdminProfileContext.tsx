@@ -31,27 +31,65 @@ type AdminProfileContextValue = {
   refreshProfile: () => Promise<void>;
 };
 
+const PROFILE_CACHE_KEY = 'admin.profile.cache.v1';
+
 const AdminProfileContext = createContext<AdminProfileContextValue | undefined>(undefined);
 
+function profileFromSessionUser(user: Record<string, unknown>): AdminProfile | null {
+  if (!user?.email) return null;
+
+  return {
+    id: String(user.id ?? ''),
+    name: String(user.name ?? ''),
+    email: String(user.email ?? ''),
+    role: String(user.role ?? 'KARYAWAN'),
+    isPaymentEnabled: user.isPaymentEnabled as boolean | undefined,
+    canManageThemes: user.canManageThemes as boolean | undefined,
+    canManageFilters: user.canManageFilters as boolean | undefined,
+    canInputCapital: user.canInputCapital as boolean | undefined,
+    initialCapital: user.initialCapital as number | undefined,
+  };
+}
+
+function readCachedProfile(): AdminProfile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AdminProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfile(profile: AdminProfile) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
 export function AdminProfileProvider({ children }: { children: ReactNode }) {
-  const { status } = useSession();
-  const [userProfile, setUserProfile] = useState<AdminProfile | null>(null);
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const { data: session, status } = useSession();
+  const [userProfile, setUserProfile] = useState<AdminProfile | null>(() => readCachedProfile());
+  const [profileLoaded, setProfileLoaded] = useState(() => Boolean(readCachedProfile()));
   const [isAccountDeleted, setIsAccountDeleted] = useState(false);
 
   const refreshProfile = useCallback(async () => {
     if (isAccountDeleted) return;
 
     try {
-      const res = await fetch('/api/admin/profile');
+      const res = await fetch('/api/admin/profile', { cache: 'no-store' });
       if (res.status === 404) {
         setIsAccountDeleted(true);
         setUserProfile(null);
         return;
       }
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as AdminProfile;
         setUserProfile(data);
+        writeCachedProfile(data);
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -61,27 +99,22 @@ export function AdminProfileProvider({ children }: { children: ReactNode }) {
   }, [isAccountDeleted]);
 
   useEffect(() => {
-    if (status !== 'authenticated') {
+    if (status === 'loading') return;
+
+    if (status !== 'authenticated' || !session?.user) {
       setUserProfile(null);
-      setProfileLoaded(status !== 'loading');
+      setProfileLoaded(true);
       return;
     }
 
+    const seeded = profileFromSessionUser(session.user as Record<string, unknown>);
+    if (seeded) {
+      setUserProfile((prev) => prev ?? seeded);
+      setProfileLoaded(true);
+    }
+
     void refreshProfile();
-
-    const onFocus = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void refreshProfile();
-      }
-    };
-
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [status, refreshProfile]);
+  }, [status, session?.user, refreshProfile]);
 
   const value = useMemo(
     () => ({ userProfile, profileLoaded, isAccountDeleted, refreshProfile }),

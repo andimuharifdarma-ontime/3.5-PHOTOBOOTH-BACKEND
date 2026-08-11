@@ -8,9 +8,10 @@ export function SwrProvider({ children }: { children: React.ReactNode }) {
     <SWRConfig
       value={{
         fetcher: jsonFetcher,
-        revalidateOnFocus: true,
+        revalidateOnFocus: false,
         revalidateOnReconnect: true,
-        dedupingInterval: 30_000,
+        dedupingInterval: 60_000,
+        keepPreviousData: true,
         errorRetryCount: 2,
       }}
     >

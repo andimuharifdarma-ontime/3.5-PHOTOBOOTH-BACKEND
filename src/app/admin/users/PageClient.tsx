@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 
 // Components
 import LoadingScreen from "@/components/ui/LoadingScreen";
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import UserCard from "@/components/admin/users/UserCard";
 import UserFormModal from "@/components/admin/users/UserFormModal";
 import Modal from "@/components/ui/Modal";
@@ -210,7 +211,7 @@ export default function UserManagementPage() {
         return matchesSearch && matchesRole;
     });
 
-    if (loading) return <LoadingScreen message="Loading Accounts..." />;
+    if (loading) return <AdminPageSkeleton variant="table" />;
 
     return (
         <div className="space-y-8 pb-20">

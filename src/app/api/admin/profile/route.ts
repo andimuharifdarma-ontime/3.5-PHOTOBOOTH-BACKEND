@@ -48,7 +48,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        return NextResponse.json(user);
+        return NextResponse.json(user, {
+            headers: {
+                'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
+            },
+        });
     } catch (error) {
         console.error('Profile API Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

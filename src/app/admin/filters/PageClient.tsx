@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import { ALL_ARTISTIC_FILTERS as ALL_FILTERS, applyFilterToImage as applyFilter } from '@/lib/filters';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 
@@ -142,7 +143,7 @@ export default function FiltersManagementPage() {
         }
     };
 
-    if (isLoading && !settings) return <LoadingScreen message="Menyiapkan Palet Warna..." />;
+    if (isLoading && !settings) return <AdminPageSkeleton variant="grid" />;
 
     return (
         <div className="max-w-6xl space-y-12 pb-20">

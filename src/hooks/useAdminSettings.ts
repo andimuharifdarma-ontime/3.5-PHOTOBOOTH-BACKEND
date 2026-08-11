@@ -31,14 +31,14 @@ export function useAdminSettings(userId?: string | null) {
   const key = userId ? `/api/admin/settings?userId=${userId}` : '/api/admin/settings';
 
   return useSWR<AdminSettings>(key, {
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
 }
 
 export function useAdminUsers(enabled = true) {
   return useSWR<AdminUserSummary[]>(enabled ? '/api/admin/users' : null, {
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
 }
@@ -52,7 +52,7 @@ export function useAdminThemes(userName?: string | null, enabled = true) {
         : null;
 
   return useSWR<AdminThemeSummary[]>(key, {
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
     dedupingInterval: 30_000,
   });
 }
@@ -127,7 +127,7 @@ export function useAdminReports(
   const key = enabled ? buildReportsKey(params) : null;
 
   return useSWR<ReportsResponse>(key, {
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
     dedupingInterval: 15_000,
     keepPreviousData: true,
   });

@@ -15,6 +15,7 @@ import { useAdminSettings, useAdminThemes, useAdminUsers } from '@/hooks/useAdmi
 
 // Components
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import ThemeCard from '@/components/admin/themes/ThemeCard';
 import ThemeFormModal from '@/components/admin/themes/ThemeFormModal';
@@ -219,7 +220,7 @@ export default function ThemesPage() {
         setFormData({ name: '', description: '', tag: '', previewUrl: '', price: '', isActive: true });
     };
 
-    if (loading) return <LoadingScreen message="Kurasi Galeri..." />;
+    if (loading) return <AdminPageSkeleton variant="grid" />;
 
     // LIST VIEW (For Admin/Karyawan)
     if (viewMode === 'list' && (isAdmin || isKaryawan)) {
