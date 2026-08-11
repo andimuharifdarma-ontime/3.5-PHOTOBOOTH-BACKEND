@@ -10,6 +10,7 @@ import BackgroundRemoverPanel, {
     type BackgroundRemoverPanelHandle,
 } from '@/components/admin/frames/BackgroundRemoverPanel';
 import { loadImage, sampleImageColorAtPoint, type RgbColor } from '@/lib/chromaKey';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 interface Slot {
     id: string;
@@ -308,15 +309,7 @@ export default function SlotEditorPage() {
     };
 
     if (loading || !frame) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[60vh] gap-6">
-                <div className="relative w-12 h-12">
-                    <div className="absolute inset-0 border-2 border-[#A68B67]/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-2 border-[#A68B67] border-t-transparent rounded-full animate-spin"></div>
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#A68B67] animate-pulse">Initializing Studio...</p>
-            </div>
-        );
+        return <AdminPageSkeleton variant="grid" />;
     }
 
     // Render slots

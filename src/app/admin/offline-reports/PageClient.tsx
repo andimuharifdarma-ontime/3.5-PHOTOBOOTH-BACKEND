@@ -25,6 +25,7 @@ import { useAdminProfile } from '@/contexts/AdminProfileContext';
 
 // Components
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 interface OfflineOrder {
     id: string;
@@ -229,15 +230,7 @@ export default function OfflineReportsPage() {
     );
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[60vh] gap-6">
-                <div className="relative w-12 h-12">
-                    <div className="absolute inset-0 border-2 border-[#A68B67]/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-2 border-[#A68B67] border-t-transparent rounded-full animate-spin"></div>
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#A68B67] animate-pulse">Menilik Non Payment Report...</p>
-            </div>
-        );
+        return <AdminPageSkeleton variant="table" />;
     }
 
     // LIST VIEW (For Admin/Karyawan)

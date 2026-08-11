@@ -39,13 +39,6 @@ import {
     getKioskPreviewScreens,
     type KioskPreviewScreen,
 } from "@/lib/kiosk-theme-presets";
-import {
-    getScreenBg,
-    setScreenBg,
-    KIOSK_SCREEN_BG_LABELS,
-    normalizeKioskScreenBgImages,
-    type KioskScreenBgImages,
-} from "@/lib/kiosk-screen-bg";
 import { ALL_ARTISTIC_FILTERS } from "@/lib/filters";
 
 export default function KioskWorkspaceCustomizerPage() {
@@ -176,7 +169,6 @@ export default function KioskWorkspaceCustomizerPage() {
         kioskButtonTextColor: null as string | null,
         kioskBgImageUrl: null as string | null,
         kioskBgImageOpacity: 1.0 as number,
-        kioskScreenBgImages: {} as KioskScreenBgImages,
         kioskShowBgDots: true as boolean,
         kioskShowBrandName: true as boolean,
         kioskShowBrandSubtitle: false as boolean,
@@ -188,12 +180,6 @@ export default function KioskWorkspaceCustomizerPage() {
     });
 
     const SCREENS = getKioskPreviewScreens(settings.isPaymentEnabled);
-    const currentScreenBg = getScreenBg(
-        settings.kioskScreenBgImages,
-        previewScreen,
-        settings.kioskBgImageUrl,
-        settings.kioskBgImageOpacity,
-    );
 
     const handlePrevScreen = () => {
         const currentIndex = SCREENS.indexOf(previewScreen);
@@ -332,11 +318,6 @@ export default function KioskWorkspaceCustomizerPage() {
                 kioskButtonTextColor: data.kioskButtonTextColor || null,
                 kioskBgImageUrl: data.kioskBgImageUrl || null,
                 kioskBgImageOpacity: data.kioskBgImageOpacity ?? 1.0,
-                kioskScreenBgImages: normalizeKioskScreenBgImages(
-                    data.kioskScreenBgImages,
-                    data.kioskBgImageUrl,
-                    data.kioskBgImageOpacity,
-                ),
                 kioskShowBgDots: data.kioskShowBgDots ?? true,
                 kioskShowBrandName: data.kioskShowBrandName ?? true,
                 kioskShowBrandSubtitle: data.kioskShowBrandSubtitle ?? false,
@@ -474,7 +455,6 @@ export default function KioskWorkspaceCustomizerPage() {
             kioskButtonTextColor: null,
             kioskBgImageUrl: null,
             kioskBgImageOpacity: 1.0,
-            kioskScreenBgImages: {},
             kioskShowBgDots: true,
             kioskShowBrandName: true,
             kioskShowBrandSubtitle: false,
@@ -558,23 +538,7 @@ export default function KioskWorkspaceCustomizerPage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setSettings(prev => {
-                    const nextScreenBgs = setScreenBg(prev.kioskScreenBgImages, previewScreen, {
-                        url: data.url,
-                    });
-                    const launcherBg = nextScreenBgs.launcher;
-                    return {
-                        ...prev,
-                        kioskScreenBgImages: nextScreenBgs,
-                        ...(previewScreen === "launcher" && launcherBg
-                            ? {
-                                kioskBgImageUrl: launcherBg.url,
-                                kioskBgImageOpacity: launcherBg.opacity,
-                                kioskShowBgDots: false,
-                            }
-                            : {}),
-                    };
-                });
+                setSettings(prev => ({ ...prev, kioskBgImageUrl: data.url, kioskShowBgDots: false }));
                 showAlert("Background berhasil diunggah!", "success");
             } else {
                 let errMsg = 'Gagal mengunggah background. Silakan coba lagi.';
@@ -601,22 +565,7 @@ export default function KioskWorkspaceCustomizerPage() {
 
     const handleDeleteBg = () => {
         showConfirm("Apakah Anda yakin ingin menghapus gambar background kustom ini?", () => {
-            setSettings(prev => {
-                const nextScreenBgs = setScreenBg(prev.kioskScreenBgImages, previewScreen, {
-                    url: null,
-                });
-                const launcherBg = nextScreenBgs.launcher;
-                return {
-                    ...prev,
-                    kioskScreenBgImages: nextScreenBgs,
-                    ...(previewScreen === "launcher"
-                        ? {
-                            kioskBgImageUrl: launcherBg?.url ?? null,
-                            kioskBgImageOpacity: launcherBg?.opacity ?? 1.0,
-                        }
-                        : {}),
-                };
-            });
+            setSettings(prev => ({ ...prev, kioskBgImageUrl: null }));
             showAlert("Background kustom berhasil dihapus.", "success");
         });
     };
@@ -1201,15 +1150,16 @@ export default function KioskWorkspaceCustomizerPage() {
                                         </span>
                                     </div>
 
-                                    {/* Custom Background Image for active preview screen */}
-                                    {currentScreenBg.url && (
+                                    {/* Immersive Grid Dots Pattern Background */}
+                                    {/* Welcome Screen Custom Background Image */}
+                                    {previewScreen === "launcher" && settings.kioskBgImageUrl && (
                                         <div 
                                             className="absolute inset-0 pointer-events-none transition-all duration-500 z-0"
                                             style={{
-                                                backgroundImage: `url(${currentScreenBg.url})`,
+                                                backgroundImage: `url(${settings.kioskBgImageUrl})`,
                                                 backgroundSize: 'cover',
                                                 backgroundPosition: 'center',
-                                                opacity: currentScreenBg.opacity ?? 1.0,
+                                                opacity: settings.kioskBgImageOpacity ?? 1.0,
                                             }}
                                         />
                                     )}
@@ -1882,19 +1832,17 @@ export default function KioskWorkspaceCustomizerPage() {
                             </div>
                         </div>
 
-                        {/* Kiosk Custom Background Upload Input (per screen) */}
+                        {/* Kiosk Custom Background Upload Input */}
                         <div className="space-y-1.5">
-                            <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">
-                                Background Kustom {KIOSK_SCREEN_BG_LABELS[previewScreen]} (JPG/PNG)
-                            </label>
+                            <label className="text-[9px] text-[#8C7E6A] font-black uppercase tracking-wider block">Background Kustom Launcher (JPG/PNG)</label>
                             
-                            {currentScreenBg.url ? (
+                            {settings.kioskBgImageUrl ? (
                                 <div className="flex items-center gap-3 p-3 bg-[#FAF8F5] border border-[#EAE1D3] rounded-2xl">
                                     <div className="w-12 h-12 bg-white rounded-xl border border-[#EAE1D3] flex items-center justify-center p-1.5 relative overflow-hidden shadow-sm">
-                                        <img src={currentScreenBg.url} alt="Background" className="w-full h-full object-cover" />
+                                        <img src={settings.kioskBgImageUrl} alt="Background" className="w-full h-full object-cover" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-bold text-[#4A3F35] truncate">Background_{KIOSK_SCREEN_BG_LABELS[previewScreen]}.jpg</p>
+                                        <p className="text-[10px] font-bold text-[#4A3F35] truncate">Background_Terunggah.jpg</p>
                                         <p className="text-[8px] text-emerald-600 font-bold uppercase tracking-wider">Aktif & Siap</p>
                                     </div>
                                     <button
@@ -1916,7 +1864,7 @@ export default function KioskWorkspaceCustomizerPage() {
                                                 <Upload className="w-5 h-5 text-[#8C7E6A] group-hover:scale-110 transition-transform duration-300" />
                                             )}
                                             <span className="text-[10px] font-extrabold text-[#4A3F35]">
-                                                {uploadingBg ? "Mengunggah..." : `Pilih Background ${KIOSK_SCREEN_BG_LABELS[previewScreen]}`}
+                                                {uploadingBg ? "Mengunggah..." : "Pilih Gambar Background"}
                                             </span>
                                             <span className="text-[8px] text-[#8C7E6A]/70 uppercase tracking-widest font-black">Maksimal 10MB</span>
                                         </div>
@@ -1931,33 +1879,20 @@ export default function KioskWorkspaceCustomizerPage() {
                                 </div>
                             )}
                             {/* Slider Input for Background Image Opacity */}
-                            {currentScreenBg.url && (
+                            {settings.kioskBgImageUrl && (
                                 <div className="space-y-1.5 pt-1.5">
                                     <div className="space-y-1">
                                         <div className="flex items-center justify-between">
                                             <label className="text-[8px] text-[#8C7E6A] font-bold uppercase tracking-wider">Transparansi Background</label>
-                                            <span className="text-[9px] font-black text-[#A68B67]">{Math.round((currentScreenBg.opacity ?? 1.0) * 100)}%</span>
+                                            <span className="text-[9px] font-black text-[#A68B67]">{Math.round((settings.kioskBgImageOpacity ?? 1.0) * 100)}%</span>
                                         </div>
                                         <input
                                             type="range"
                                             min="0"
                                             max="1"
                                             step="0.05"
-                                            value={currentScreenBg.opacity ?? 1.0}
-                                            onChange={e => {
-                                                const opacity = parseFloat(e.target.value);
-                                                setSettings(prev => {
-                                                    const nextScreenBgs = setScreenBg(prev.kioskScreenBgImages, previewScreen, { opacity });
-                                                    const launcherBg = nextScreenBgs.launcher;
-                                                    return {
-                                                        ...prev,
-                                                        kioskScreenBgImages: nextScreenBgs,
-                                                        ...(previewScreen === "launcher" && launcherBg
-                                                            ? { kioskBgImageOpacity: launcherBg.opacity }
-                                                            : {}),
-                                                    };
-                                                });
-                                            }}
+                                            value={settings.kioskBgImageOpacity ?? 1.0}
+                                            onChange={e => setSettings(prev => ({ ...prev, kioskBgImageOpacity: parseFloat(e.target.value) }))}
                                             className="w-full h-1 bg-[#EAE1D3] rounded-lg appearance-none cursor-pointer accent-[#A68B67]"
                                         />
                                     </div>

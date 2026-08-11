@@ -13,7 +13,7 @@ import {
     Shield
 } from "lucide-react";
 import { motion } from "framer-motion";
-import LoadingScreen from "@/components/ui/LoadingScreen";
+import AdminPageSkeleton from "@/components/ui/AdminPageSkeleton";
 import Badge from "@/components/ui/Badge";
 
 interface User {
@@ -84,7 +84,7 @@ export default function KioskThemesAccountSelectorPage() {
         return matchesSearch && matchesRole;
     });
 
-    if (loading) return <LoadingScreen />;
+    if (loading) return <AdminPageSkeleton variant="grid" />;
 
     return (
         <div className="p-8 lg:p-12 space-y-12 max-w-[1600px] mx-auto animate-fadeIn">

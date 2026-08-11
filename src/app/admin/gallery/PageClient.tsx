@@ -6,6 +6,7 @@ import { Download, FileImage, FileVideo, Archive, Loader2, PlaySquare, Image as 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import PaginationBar from '@/components/ui/PaginationBar';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 interface GalleryItem {
     id: string;
@@ -131,11 +132,7 @@ export default function GalleryPage() {
     };
 
     if (loading && items.length === 0) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-[#FDFBF7]">
-                <Loader2 className="w-8 h-8 animate-spin text-[#A68B67]" />
-            </div>
-        );
+        return <AdminPageSkeleton variant="grid" />;
     }
 
     return (

@@ -28,7 +28,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 
 // Components
-import LoadingScreen from '@/components/ui/LoadingScreen';
 import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import StatCard from '@/components/admin/dashboard/StatCard';
 import CircularProgress from '@/components/admin/dashboard/CircularProgress';

@@ -10,6 +10,7 @@ import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import AdminThumbImage from '@/components/ui/AdminThumbImage';
 import { FRAME_FORMAT_PRESETS } from '@/lib/frameFormats';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 
 interface Slot {
@@ -254,11 +255,7 @@ export default function ThemeFramesPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
+        return <AdminPageSkeleton variant="grid" />;
     }
 
     if (!theme) return <div>Tema tidak ditemukan</div>;

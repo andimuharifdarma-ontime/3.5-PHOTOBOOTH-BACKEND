@@ -24,7 +24,6 @@ import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import { toast } from 'react-hot-toast';
 
 // Components
-import LoadingScreen from '@/components/ui/LoadingScreen';
 import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import StatCardSmall from '@/components/ui/StatCardSmall';
 import FinancialBlueprint from '@/components/admin/reports/FinancialBlueprint';

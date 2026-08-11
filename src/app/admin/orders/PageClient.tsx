@@ -6,7 +6,6 @@ import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 
 // Components
-import LoadingScreen from '@/components/ui/LoadingScreen';
 import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import OrderRow from '@/components/admin/orders/OrderRow';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';

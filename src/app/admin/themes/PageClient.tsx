@@ -14,7 +14,6 @@ import { useAdminProfile } from '@/contexts/AdminProfileContext';
 import { useAdminSettings, useAdminThemes, useAdminUsers } from '@/hooks/useAdminSettings';
 
 // Components
-import LoadingScreen from '@/components/ui/LoadingScreen';
 import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import ThemeCard from '@/components/admin/themes/ThemeCard';

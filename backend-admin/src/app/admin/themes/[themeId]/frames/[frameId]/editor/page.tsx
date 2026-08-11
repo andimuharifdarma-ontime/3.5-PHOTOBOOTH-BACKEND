@@ -1,10 +1,10 @@
 import dynamic from 'next/dynamic';
 import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
-const PageClient = dynamic(() => import('./PageClient'), {
+const EditorPageClient = dynamic(() => import('./PageClient'), {
   loading: () => <AdminPageSkeleton variant="grid" />,
 });
 
-export default function Page() {
-  return <PageClient />;
+export default function EditorPage() {
+  return <EditorPageClient />;
 }

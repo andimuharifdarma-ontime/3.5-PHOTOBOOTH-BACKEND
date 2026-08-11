@@ -5,6 +5,7 @@ import { Download, RefreshCw, FolderDown, Image as ImageIcon, Video, FileJson, P
 import { motion, AnimatePresence } from 'framer-motion';
 import PaginationBar from '@/components/ui/PaginationBar';
 import { isStorageFileExpired } from '@/lib/cleanup-photos';
+import AdminPageSkeleton from '@/components/ui/AdminPageSkeleton';
 
 type SupabaseFile = {
     name: string;
@@ -283,12 +284,7 @@ export default function CloudGalleryPage() {
             {renderTabs()}
 
             {isLoading ? (
-                <div className="flex items-center justify-center h-64 border-2 border-dashed border-white/10 rounded-2xl">
-                    <div className="text-center">
-                        <RefreshCw className="w-8 h-8 text-[#A68B67] animate-spin mx-auto mb-4" />
-                        <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Memuat Aset Cloud...</p>
-                    </div>
-                </div>
+                <AdminPageSkeleton variant="grid" />
             ) : currentList.length === 0 ? (
                 <div className="flex items-center justify-center h-64 border-2 border-dashed border-white/10 rounded-2xl bg-[#1C1917]/50">
                     <div className="text-center">
