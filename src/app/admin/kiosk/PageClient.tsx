@@ -38,7 +38,7 @@ export default function KioskControlPage() {
   const [kiosks, setKiosks] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdminLoading, setIsAdminLoading] = useState(true);
-  const [updatingClientId, setUpdatingClientId] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,12 +68,15 @@ export default function KioskControlPage() {
   }
 
   async function toggleLock() {
+    const previous = Boolean(settings?.isKioskLocked);
+    const next = !previous;
+    setSettings((prev: any) => (prev ? { ...prev, isKioskLocked: next } : prev));
     setIsUpdating(true);
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isKioskLocked: !settings.isKioskLocked })
+        body: JSON.stringify({ isKioskLocked: next })
       });
       
       if (!res.ok) throw new Error();
@@ -82,6 +85,7 @@ export default function KioskControlPage() {
       setSettings(updated);
       toast.success(updated.isKioskLocked ? 'Kiosk Berhasil Dikunci' : 'Kiosk Berhasil Dibuka');
     } catch (err) {
+      setSettings((prev: any) => (prev ? { ...prev, isKioskLocked: previous } : prev));
       toast.error('Gagal memperbarui status');
     } finally {
       setIsUpdating(false);
@@ -118,38 +122,45 @@ export default function KioskControlPage() {
   };
 
   async function handleAdminToggle(clientId: string, field: 'isKioskLocked' | 'isPaymentEnabled', currentValue: boolean) {
-    setUpdatingClientId(clientId);
+    const nextValue = !currentValue;
+    const toggleKey = `${clientId}:${field}`;
+    setPendingToggle(toggleKey);
+    setKiosks((prev) =>
+      prev.map((kiosk) => (kiosk.id === clientId ? { ...kiosk, [field]: nextValue } : kiosk)),
+    );
     try {
       const res = await fetch('/api/admin/kiosks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId,
-          [field]: !currentValue
+          [field]: nextValue
         })
       });
 
       if (!res.ok) throw new Error();
 
       const data = await res.json();
-      
-      // Update local state instantly
-      setKiosks(prev => prev.map(kiosk => {
-        if (kiosk.id === clientId) {
-          return {
-            ...kiosk,
-            isKioskLocked: data.isKioskLocked,
-            isPaymentEnabled: data.isPaymentEnabled
-          };
-        }
-        return kiosk;
-      }));
+      setKiosks((prev) =>
+        prev.map((kiosk) =>
+          kiosk.id === clientId
+            ? {
+                ...kiosk,
+                isKioskLocked: data.isKioskLocked,
+                isPaymentEnabled: data.isPaymentEnabled,
+              }
+            : kiosk,
+        ),
+      );
 
       toast.success(`Berhasil memperbarui konfigurasi kiosk`);
     } catch (err) {
+      setKiosks((prev) =>
+        prev.map((kiosk) => (kiosk.id === clientId ? { ...kiosk, [field]: currentValue } : kiosk)),
+      );
       toast.error('Gagal memproses konfigurasi remote');
     } finally {
-      setUpdatingClientId(null);
+      setPendingToggle((current) => (current === toggleKey ? null : current));
     }
   }
 
@@ -361,16 +372,19 @@ export default function KioskControlPage() {
                           <span>Kunci Mesin Kiosk</span>
                         </div>
                         <button
-                          disabled={updatingClientId === kiosk.id}
+                          type="button"
+                          disabled={pendingToggle === `${kiosk.id}:isKioskLocked`}
                           onClick={() => handleAdminToggle(kiosk.id, 'isKioskLocked', kiosk.isKioskLocked)}
-                          className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${
+                          className={`w-14 h-8 rounded-full p-1 transition-colors duration-150 ${
                             kiosk.isKioskLocked ? 'bg-red-500' : 'bg-stone-200'
-                          }`}
+                          } ${pendingToggle === `${kiosk.id}:isKioskLocked` ? 'opacity-80' : ''}`}
                         >
-                          <div className={`bg-white w-6 h-6 rounded-full shadow-md transition-all duration-300 transform flex items-center justify-center ${
+                          <div className={`bg-white w-6 h-6 rounded-full shadow-md transition-transform duration-150 transform flex items-center justify-center ${
                             kiosk.isKioskLocked ? 'translate-x-6' : 'translate-x-0'
                           }`}>
-                            {kiosk.isKioskLocked ? (
+                            {pendingToggle === `${kiosk.id}:isKioskLocked` ? (
+                              <RefreshCw className="w-3 h-3 text-stone-400 animate-spin" />
+                            ) : kiosk.isKioskLocked ? (
                               <Lock className="w-3 h-3 text-red-500" />
                             ) : (
                               <Unlock className="w-3 h-3 text-stone-400" />
@@ -386,16 +400,19 @@ export default function KioskControlPage() {
                           <span>DOKU Snap Pembayaran</span>
                         </div>
                         <button
-                          disabled={updatingClientId === kiosk.id}
+                          type="button"
+                          disabled={pendingToggle === `${kiosk.id}:isPaymentEnabled`}
                           onClick={() => handleAdminToggle(kiosk.id, 'isPaymentEnabled', kiosk.isPaymentEnabled)}
-                          className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${
+                          className={`w-14 h-8 rounded-full p-1 transition-colors duration-150 ${
                             kiosk.isPaymentEnabled ? 'bg-green-500' : 'bg-stone-200'
-                          }`}
+                          } ${pendingToggle === `${kiosk.id}:isPaymentEnabled` ? 'opacity-80' : ''}`}
                         >
-                          <div className={`bg-white w-6 h-6 rounded-full shadow-md transition-all duration-300 transform flex items-center justify-center ${
+                          <div className={`bg-white w-6 h-6 rounded-full shadow-md transition-transform duration-150 transform flex items-center justify-center ${
                             kiosk.isPaymentEnabled ? 'translate-x-6' : 'translate-x-0'
                           }`}>
-                            {kiosk.isPaymentEnabled ? (
+                            {pendingToggle === `${kiosk.id}:isPaymentEnabled` ? (
+                              <RefreshCw className="w-3 h-3 text-stone-400 animate-spin" />
+                            ) : kiosk.isPaymentEnabled ? (
                               <span className="w-2 h-2 rounded-full bg-green-500" />
                             ) : (
                               <span className="w-2 h-2 rounded-full bg-stone-300" />
