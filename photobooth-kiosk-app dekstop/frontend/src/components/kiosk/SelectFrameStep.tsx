@@ -52,10 +52,10 @@ export const SelectFrameStep: React.FC<SelectFrameStepProps> = ({
   return (
     <motion.div
       key="select_frame"
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -30 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       className="w-full max-w-6xl px-8 flex flex-col items-center"
       style={{ color: kioskTheme.textColorHex }}
     >

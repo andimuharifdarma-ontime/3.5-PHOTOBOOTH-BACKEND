@@ -151,7 +151,7 @@ export default function PhotoboothApp() {
   return (
     <KioskThemeProvider settings={kioskSettings}>
     <main 
-      className={`relative w-full min-h-screen transition-all duration-500 ${
+      className={`relative w-full min-h-screen transition-all duration-200 ${
         step === "WELCOME"
           ? "h-screen overflow-hidden"
           : step === "SETUP"
