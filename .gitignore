@@ -52,3 +52,7 @@ dist/
 next-env.d.ts
 
 /src/generated/prisma
+
+# Kiosk desktop app lives in its own repo:
+# https://github.com/andimuharifdarma-ontime/photobooth-kiosk-app
+/photobooth-kiosk-app dekstop/

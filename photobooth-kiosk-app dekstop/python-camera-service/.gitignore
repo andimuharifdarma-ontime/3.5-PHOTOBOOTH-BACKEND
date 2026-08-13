@@ -1,6 +1,0 @@
-venv/
-.venv/
-captured_photos/
-__pycache__/
-*.pyc
-.env
