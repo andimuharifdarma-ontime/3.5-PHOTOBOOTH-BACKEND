@@ -153,7 +153,6 @@ export default function ThemeFramesPage() {
             setFormData((prev) => ({
                 ...prev,
                 imageUrl: objectUrl,
-                previewUrl: prev.previewUrl || objectUrl,
             }));
         }
     };
