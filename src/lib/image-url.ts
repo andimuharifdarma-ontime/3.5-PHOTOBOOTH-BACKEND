@@ -4,6 +4,7 @@ const SUPABASE_RENDER_MARKER = '/storage/v1/render/image/public/';
 /** Derive admin upload thumb URL from a main upload URL. */
 export function getAdminThumbUrl(url: string): string | null {
   if (!url) return null;
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
 
   if (url.includes('/uploads/thumbs/')) {
     return url;

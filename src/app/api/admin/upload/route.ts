@@ -53,7 +53,17 @@ export async function POST(request: Request) {
         }
 
         const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-        if (!allowedTypes.includes(file.type)) {
+        let mimeType = file.type?.toLowerCase();
+
+        if (!mimeType || !allowedTypes.includes(mimeType)) {
+            const ext = file.name?.split('.').pop()?.toLowerCase();
+            if (ext === 'png') mimeType = 'image/png';
+            else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+            else if (ext === 'webp') mimeType = 'image/webp';
+            else if (ext === 'gif') mimeType = 'image/gif';
+        }
+
+        if (!mimeType || !allowedTypes.includes(mimeType)) {
             return NextResponse.json({ error: 'Invalid file type. Only PNG, JPG, WEBP, and GIF are allowed.' }, { status: 400 });
         }
 
@@ -61,8 +71,9 @@ export async function POST(request: Request) {
         const bytes = await file.arrayBuffer();
         const inputBuffer = Buffer.from(bytes);
 
-        const optimized = await optimizeImageUpload(inputBuffer, file.type);
+        const optimized = await optimizeImageUpload(inputBuffer, mimeType);
         const baseName = `${timestamp}`;
+
         const mainPath = `uploads/${baseName}.${optimized.main.ext}`;
         const thumbPath = optimized.thumb ? `uploads/thumbs/${baseName}.${optimized.thumb.ext}` : null;
 

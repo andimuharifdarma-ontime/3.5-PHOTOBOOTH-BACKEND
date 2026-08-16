@@ -51,6 +51,7 @@ export async function POST(request: Request) {
             themeId,
             name,
             imageUrl,
+            originalImageUrl,
             previewUrl,
             price,
             outputWidth,
@@ -58,9 +59,11 @@ export async function POST(request: Request) {
             slots
         } = body;
 
-        if (!themeId || !name || !imageUrl || !previewUrl) {
+        const finalPreviewUrl = previewUrl || imageUrl;
+
+        if (!themeId || !name || !imageUrl || !finalPreviewUrl) {
             return NextResponse.json({
-                error: 'themeId, name, imageUrl, and previewUrl are required'
+                error: 'themeId, name, and imageUrl are required'
             }, { status: 400 });
         }
 
@@ -80,7 +83,8 @@ export async function POST(request: Request) {
                 themeId,
                 name,
                 imageUrl,
-                previewUrl,
+                originalImageUrl: originalImageUrl || imageUrl,
+                previewUrl: finalPreviewUrl,
                 price: price || 5000,
                 outputWidth: outputWidth || 1080,
                 outputHeight: outputHeight || 1920,
@@ -88,6 +92,7 @@ export async function POST(request: Request) {
                 order: (maxOrder._max.order ?? 0) + 1,
             },
         });
+
 
         // Audit log
         await logAuditEvent({

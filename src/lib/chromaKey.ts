@@ -32,14 +32,59 @@ export function rgbToHex(r: number, g: number, b: number): string {
 }
 
 export async function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Gagal memuat gambar frame'));
-    img.src = url;
-  });
+  if (!url) throw new Error('URL gambar tidak ada');
+
+  let resolvedUrl = url;
+  if (
+    typeof window !== 'undefined' &&
+    !url.startsWith('http://') &&
+    !url.startsWith('https://') &&
+    !url.startsWith('data:') &&
+    !url.startsWith('blob:')
+  ) {
+    resolvedUrl = new URL(url.startsWith('/') ? url : `/${url}`, window.location.origin).href;
+  }
+
+  // 1. Try loading directly with crossOrigin='anonymous'
+  try {
+    return await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      if (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('direct_load_failed'));
+      img.src = resolvedUrl;
+    });
+  } catch {
+    // 2. If direct load fails (e.g. CORS restrictions), try fetching as Blob to create a same-origin Blob URL
+    try {
+      const res = await fetch(resolvedUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      return await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('Gagal memuat gambar frame'));
+        };
+        img.src = objectUrl;
+      });
+    } catch {
+      // 3. Fallback: attempt load without crossOrigin
+      return await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Gagal memuat gambar frame'));
+        img.src = resolvedUrl;
+      });
+    }
+  }
 }
+
 
 function clampTolerance(tolerance: number): number {
   return Math.max(0, Math.min(100, tolerance));

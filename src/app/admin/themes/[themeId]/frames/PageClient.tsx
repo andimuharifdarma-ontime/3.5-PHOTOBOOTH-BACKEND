@@ -150,7 +150,11 @@ export default function ThemeFramesPage() {
         if (file) {
             setImageFile(file);
             const objectUrl = URL.createObjectURL(file);
-            setFormData({ ...formData, imageUrl: objectUrl });
+            setFormData((prev) => ({
+                ...prev,
+                imageUrl: objectUrl,
+                previewUrl: prev.previewUrl || objectUrl,
+            }));
         }
     };
 
@@ -172,7 +176,11 @@ export default function ThemeFramesPage() {
             let previewUrl = formData.previewUrl;
 
             if (imageFile) imageUrl = await uploadFile(imageFile);
-            if (previewFile) previewUrl = await uploadFile(previewFile);
+            if (previewFile) {
+                previewUrl = await uploadFile(previewFile);
+            } else if (imageFile || !previewUrl || previewUrl.startsWith('blob:')) {
+                previewUrl = imageUrl;
+            }
 
             const url = editingFrame ? `/api/admin/frames/${editingFrame.id}` : '/api/admin/frames';
             const method = editingFrame ? 'PUT' : 'POST';
@@ -183,6 +191,7 @@ export default function ThemeFramesPage() {
                 body: JSON.stringify({
                     ...formData,
                     imageUrl,
+                    originalImageUrl: imageUrl,
                     previewUrl,
                     themeId,
                     slots: editingFrame?.slots || [],
@@ -198,13 +207,18 @@ export default function ThemeFramesPage() {
                     setShowModal(false);
                     resetForm();
                 }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                alert(errData.error || 'Gagal menyimpan frame');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save frame:', error);
+            alert(`Gagal mengunggah frame: ${error.message || error}`);
         } finally {
             setUploading(false);
         }
     };
+
 
     const handleDelete = (id: string) => {
         setFrameToDelete(id);
@@ -562,7 +576,7 @@ export default function ThemeFramesPage() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={uploading || !formData.name || !formData.imageUrl || !formData.previewUrl}
+                                        disabled={uploading || !formData.name || !formData.imageUrl}
                                         className="flex-[2] px-8 py-4 bg-[#4A3F35] text-[#FDFBF7] rounded-xl hover:bg-[#2D2824] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-[#4A3F35]/10"
                                     >
                                         {uploading ? 'Memproses Studio...' : editingFrame ? 'Simpan Perubahan' : 'Lanjut ke Editor Slot'}

@@ -393,8 +393,17 @@ export default function SlotEditorPage() {
             alt={frame.name}
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             draggable={false}
+            onError={(e) => {
+                const target = e.currentTarget;
+                if (originalImageUrl && target.src !== originalImageUrl) {
+                    target.src = originalImageUrl;
+                } else if (frame?.imageUrl && target.src !== frame.imageUrl) {
+                    target.src = frame.imageUrl;
+                }
+            }}
         />
     );
+
 
     return (
         <div className="space-y-10 pb-20">
