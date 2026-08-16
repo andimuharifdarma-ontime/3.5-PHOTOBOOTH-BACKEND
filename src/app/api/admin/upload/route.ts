@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         const thumbPath = optimized.thumb ? `uploads/thumbs/${baseName}.${optimized.thumb.ext}` : null;
 
         // Convert Buffer to Blob to prevent Next.js fetch from corrupting binary data with UTF-8 replacement characters
-        const mainBlob = new Blob([optimized.main.buffer], { type: optimized.main.contentType });
+        const mainBlob = new Blob([optimized.main.buffer as unknown as BlobPart], { type: optimized.main.contentType });
 
         const { error: uploadError } = await supabase.storage
             .from(BUCKET_NAME)
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
         let thumbUrl: string | null = null;
         if (optimized.thumb && thumbPath) {
-            const thumbBlob = new Blob([optimized.thumb.buffer], { type: optimized.thumb.contentType });
+            const thumbBlob = new Blob([optimized.thumb.buffer as unknown as BlobPart], { type: optimized.thumb.contentType });
             const { error: thumbError } = await supabase.storage
                 .from(BUCKET_NAME)
                 .upload(thumbPath, thumbBlob, {
