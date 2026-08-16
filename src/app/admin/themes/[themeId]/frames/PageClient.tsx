@@ -174,9 +174,15 @@ export default function ThemeFramesPage() {
             let imageUrl = formData.imageUrl;
             let previewUrl = formData.previewUrl;
 
-            if (imageFile) imageUrl = await uploadFile(imageFile);
-            if (previewFile) {
-                previewUrl = await uploadFile(previewFile);
+            // Upload imageFile and previewFile in parallel for maximum speed
+            const [uploadedImageUrl, uploadedPreviewUrl] = await Promise.all([
+                imageFile ? uploadFile(imageFile) : Promise.resolve(null),
+                previewFile ? uploadFile(previewFile) : Promise.resolve(null),
+            ]);
+
+            if (uploadedImageUrl) imageUrl = uploadedImageUrl;
+            if (uploadedPreviewUrl) {
+                previewUrl = uploadedPreviewUrl;
             } else if (imageFile || !previewUrl || previewUrl.startsWith('blob:')) {
                 previewUrl = imageUrl;
             }

@@ -34,17 +34,18 @@ export async function optimizeImageUpload(
 
   const pipeline = sharp(input, { failOn: 'none' }).rotate();
 
-  const mainBuffer = await pipeline
-    .clone()
-    .resize({ width: MAX_MAIN_WIDTH, withoutEnlargement: true })
-    .webp({ quality: MAIN_QUALITY, effort: 4 })
-    .toBuffer();
-
-  const thumbBuffer = await sharp(input, { failOn: 'none' })
-    .rotate()
-    .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
-    .webp({ quality: THUMB_QUALITY, effort: 3 })
-    .toBuffer();
+  const [mainBuffer, thumbBuffer] = await Promise.all([
+    pipeline
+      .clone()
+      .resize({ width: MAX_MAIN_WIDTH, withoutEnlargement: true })
+      .webp({ quality: MAIN_QUALITY, effort: 1 })
+      .toBuffer(),
+    pipeline
+      .clone()
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .webp({ quality: THUMB_QUALITY, effort: 1 })
+      .toBuffer(),
+  ]);
 
   return {
     main: {

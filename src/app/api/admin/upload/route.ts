@@ -80,36 +80,42 @@ export async function POST(request: Request) {
         // Convert Buffer to Blob to prevent Next.js fetch from corrupting binary data with UTF-8 replacement characters
         const mainBlob = new Blob([optimized.main.buffer as unknown as BlobPart], { type: optimized.main.contentType });
 
-        const { error: uploadError } = await supabase.storage
-            .from(BUCKET_NAME)
-            .upload(mainPath, mainBlob, {
-                contentType: optimized.main.contentType,
-                upsert: true,
-                cacheControl: '31536000',
-            });
+        const uploadPromises: Promise<any>[] = [
+            supabase.storage
+                .from(BUCKET_NAME)
+                .upload(mainPath, mainBlob, {
+                    contentType: optimized.main.contentType,
+                    upsert: true,
+                    cacheControl: '31536000',
+                }),
+        ];
 
-        if (uploadError) {
-            console.error('Supabase upload error:', uploadError);
-            return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
+        if (optimized.thumb && thumbPath) {
+            const thumbBlob = new Blob([optimized.thumb.buffer as unknown as BlobPart], { type: optimized.thumb.contentType });
+            uploadPromises.push(
+                supabase.storage
+                    .from(BUCKET_NAME)
+                    .upload(thumbPath, thumbBlob, {
+                        contentType: optimized.thumb.contentType,
+                        upsert: true,
+                        cacheControl: '31536000',
+                    })
+            );
+        }
+
+        const results = await Promise.all(uploadPromises);
+        const mainResult = results[0];
+        const thumbResult = optimized.thumb ? results[1] : null;
+
+        if (mainResult.error) {
+            console.error('Supabase main upload error:', mainResult.error);
+            return NextResponse.json({ error: `Upload failed: ${mainResult.error.message}` }, { status: 500 });
         }
 
         let thumbUrl: string | null = null;
-        if (optimized.thumb && thumbPath) {
-            const thumbBlob = new Blob([optimized.thumb.buffer as unknown as BlobPart], { type: optimized.thumb.contentType });
-            const { error: thumbError } = await supabase.storage
-                .from(BUCKET_NAME)
-                .upload(thumbPath, thumbBlob, {
-                    contentType: optimized.thumb.contentType,
-                    upsert: true,
-                    cacheControl: '31536000',
-                });
-
-            if (!thumbError) {
-                const { data: thumbData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(thumbPath);
-                thumbUrl = thumbData.publicUrl;
-            } else {
-                console.warn('Thumb upload failed, main image still saved:', thumbError.message);
-            }
+        if (thumbPath && thumbResult && !thumbResult.error) {
+            const { data: thumbData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(thumbPath);
+            thumbUrl = thumbData.publicUrl;
         }
 
         const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(mainPath);
