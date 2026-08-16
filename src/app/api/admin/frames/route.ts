@@ -78,21 +78,43 @@ export async function POST(request: Request) {
             _max: { order: true },
         });
 
-        const frame = await prisma.frame.create({
-            data: {
-                themeId,
-                name,
-                imageUrl,
-                originalImageUrl: originalImageUrl || imageUrl,
-                previewUrl: finalPreviewUrl,
-                price: price || 5000,
-                outputWidth: outputWidth || 1080,
-                outputHeight: outputHeight || 1920,
-                slots: slots || [],
-                order: (maxOrder._max.order ?? 0) + 1,
-            },
-        });
+        const createData: any = {
+            themeId,
+            name,
+            imageUrl,
+            originalImageUrl: originalImageUrl || imageUrl,
+            previewUrl: finalPreviewUrl,
+            price: price || 5000,
+            outputWidth: outputWidth || 1080,
+            outputHeight: outputHeight || 1920,
+            slots: slots || [],
+            order: (maxOrder._max.order ?? 0) + 1,
+        };
 
+        let frame;
+        try {
+            frame = await prisma.frame.create({ data: createData });
+        } catch (createError) {
+            const message = createError instanceof Error ? createError.message : String(createError);
+            const isMissingColumn = (col: string) => message.includes(col) || (message.includes('column') && message.includes('Frame'));
+            
+            let retry = false;
+            if (isMissingColumn('originalImageUrl')) {
+                delete createData.originalImageUrl;
+                retry = true;
+            }
+            if (isMissingColumn('chromaKeyColor') || isMissingColumn('chromaKeyTolerance')) {
+                delete createData.chromaKeyColor;
+                delete createData.chromaKeyTolerance;
+                retry = true;
+            }
+
+            if (retry) {
+                frame = await prisma.frame.create({ data: createData });
+            } else {
+                throw createError;
+            }
+        }
 
         // Audit log
         await logAuditEvent({
