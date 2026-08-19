@@ -7,8 +7,20 @@ import * as crypto from 'crypto';
 import {
     buildReportsWhereClause,
     formatReportTransaction,
+    isReportsAccessRole,
     parseReportsPagination,
 } from '@/lib/reports-query';
+
+type ReportsSessionUser = { role?: string; email?: string; name?: string };
+
+function reportsScopeParams(user: ReportsSessionUser, userNameParam?: string | null) {
+    return {
+        userRole: user.role ?? '',
+        userEmail: user.email ?? '',
+        sessionUserName: user.name,
+        userNameParam: userNameParam ?? null,
+    };
+}
 
 export async function GET(request: Request) {
     try {
@@ -17,7 +29,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const user = session.user as { role?: string; email?: string; name?: string };
+        const user = session.user as ReportsSessionUser;
+        if (!isReportsAccessRole(user.role)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         const { searchParams } = new URL(request.url);
         const exportAll = searchParams.get('exportAll') === '1';
         const { page, limit, skip } = parseReportsPagination(searchParams);
@@ -26,10 +42,7 @@ export async function GET(request: Request) {
 
         const whereClause = await buildReportsWhereClause(
             {
-                userRole: user.role ?? '',
-                userEmail: user.email ?? '',
-                sessionUserName: user.name,
-                userNameParam: searchParams.get('userName'),
+                ...reportsScopeParams(user, searchParams.get('userName')),
                 startDateStr: searchParams.get('startDate'),
                 endDateStr: searchParams.get('endDate'),
                 search: searchParams.get('search') ?? undefined,
@@ -108,20 +121,72 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const session = await getServerSession(authOptions);
-        const user = session?.user as any;
-        if (!session || (user?.role !== 'ADMIN' && user?.role !== 'KARYAWAN')) {
+        if (!session?.user?.email) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const currentUser = await prisma.adminUser.findUnique({
+            where: { email: session.user.email },
+            select: { role: true, canInputCapital: true, name: true, email: true },
+        });
+        if (!currentUser) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        if (currentUser.role !== 'ADMIN' && currentUser.role !== 'KARYAWAN') {
             return NextResponse.json({ error: 'Unauthorized: Admin or Karyawan role required' }, { status: 403 });
         }
 
-        const { id, costPrice } = await request.json();
+        if (currentUser.role !== 'ADMIN' && !currentUser.canInputCapital) {
+            return NextResponse.json({ error: 'Forbidden: Capital input permission required' }, { status: 403 });
+        }
 
-        if (!id || typeof costPrice !== 'number') {
+        const body = await request.json();
+        const { id, costPrice, userName: userNameParam } = body;
+
+        if (
+            !id ||
+            typeof costPrice !== 'number' ||
+            !Number.isFinite(costPrice) ||
+            costPrice < 0 ||
+            costPrice > 10_000_000 ||
+            !Number.isInteger(costPrice)
+        ) {
             return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
+        }
+
+        const user = {
+            role: currentUser.role,
+            email: currentUser.email,
+            name: currentUser.name ?? undefined,
+        };
+
+        const scopeWhere = await buildReportsWhereClause(
+            reportsScopeParams(user, userNameParam),
+            prisma,
+        );
+
+        const existing = await prisma.printOrder.findFirst({
+            where: { AND: [{ id }, scopeWhere] },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }
 
         const updatedOrder = await prisma.printOrder.update({
             where: { id },
-            data: { costPrice }
+            data: { costPrice },
+            select: {
+                id: true,
+                userName: true,
+                frameName: true,
+                quantity: true,
+                totalPrice: true,
+                costPrice: true,
+                createdAt: true,
+                paymentStatus: true,
+            },
         });
 
         return NextResponse.json(updatedOrder);
@@ -139,10 +204,19 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Unauthorized: Admin or Karyawan role required' }, { status: 403 });
         }
 
-        const { ids, all } = await request.json();
+        const { ids, all, userName: userNameParam } = await request.json();
+        const scopeWhere = await buildReportsWhereClause(
+            reportsScopeParams(user, userNameParam),
+            prisma,
+        );
 
         if (all) {
-            // Delete all print orders
+            if (user?.role !== 'ADMIN') {
+                return NextResponse.json(
+                    { error: 'Only ADMIN can clear all history' },
+                    { status: 403 }
+                );
+            }
             await prisma.printOrder.deleteMany({});
             return NextResponse.json({ message: 'All history cleared successfully' });
         }
@@ -151,16 +225,17 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Invalid IDs provided' }, { status: 400 });
         }
 
-        // Delete specific print orders
-        await prisma.printOrder.deleteMany({
+        const deleteResult = await prisma.printOrder.deleteMany({
             where: {
-                id: {
-                    in: ids
-                }
-            }
+                AND: [{ id: { in: ids } }, scopeWhere],
+            },
         });
 
-        return NextResponse.json({ message: `${ids.length} records deleted successfully` });
+        if (deleteResult.count === 0) {
+            return NextResponse.json({ error: 'No matching records found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ message: `${deleteResult.count} records deleted successfully` });
 
     } catch (error) {
         console.error('Failed to delete reports:', error);
@@ -175,7 +250,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const user = session.user as any;
+        const user = session.user as ReportsSessionUser;
+        if (!isReportsAccessRole(user.role)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         const userRole = user.role;
 
         let whereClause: any = {
@@ -194,7 +273,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // Fetch all pending orders
         const pendingOrders = await prisma.printOrder.findMany({
             where: whereClause,
             select: { id: true }

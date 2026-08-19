@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../lib/prisma';
-import { generateDokuSignature, generateDigest } from '../../../../lib/doku';
+import prisma from '@/lib/prisma';
+import { generateDokuSignature, generateDigest } from '@/lib/doku';
 import * as crypto from 'crypto';
 import { authenticateRequest } from '@/lib/api-auth';
 import { checkRateLimit, RATE_LIMIT_CHECKOUT } from '@/lib/rate-limiter';

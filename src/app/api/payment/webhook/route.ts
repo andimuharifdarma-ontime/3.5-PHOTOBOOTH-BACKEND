@@ -91,14 +91,16 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// Health probe for DOKU Dashboard (no sensitive data)
+// Health probe for DOKU Dashboard (requires configured probe key)
 export async function GET(request: NextRequest) {
     const probeKey = process.env.DOKU_WEBHOOK_PROBE_KEY?.trim();
-    if (probeKey) {
-        const provided = request.nextUrl.searchParams.get('key');
-        if (provided !== probeKey) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    if (!probeKey) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const provided = request.nextUrl.searchParams.get('key') ?? '';
+    if (!timingSafeEqualString(provided, probeKey)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return NextResponse.json({
