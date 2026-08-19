@@ -134,6 +134,24 @@ export default function CloudGalleryPage() {
         });
     };
 
+    const handleDeleteSingle = async (file: SupabaseFile) => {
+        if (!confirm('Hapus file ini secara permanen dari Supabase Storage?')) return;
+        try {
+            const folder = file.folder || 'images';
+            const res = await fetch(`/api/admin/supabase-files?fileName=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(folder)}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                setFiles(prev => prev.filter(f => f.name !== file.name));
+            } else {
+                alert('Gagal menghapus file.');
+            }
+        } catch (error) {
+            console.error('Failed to delete file', error);
+            alert('Terjadi kesalahan saat menghapus.');
+        }
+    };
+
     const handleDownloadSingle = async (file: SupabaseFile) => {
         try {
             const { saveAs } = await import('file-saver');
@@ -336,13 +354,20 @@ export default function CloudGalleryPage() {
                                         )}
                                     
                                     {/* Hover Overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 gap-2">
                                         <button
                                             onClick={() => handleDownloadSingle(file)}
                                             className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#A68B67] text-white rounded-lg shadow-lg hover:bg-white hover:text-black transition-colors"
                                         >
                                             <Download className="w-4 h-4" />
                                             <span className="text-[10px] font-black uppercase tracking-wider">Download</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteSingle(file)}
+                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-500 transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Hapus</span>
                                         </button>
                                     </div>
                                 </div>
