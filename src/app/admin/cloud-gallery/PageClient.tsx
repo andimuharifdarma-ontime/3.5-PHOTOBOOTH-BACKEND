@@ -95,7 +95,11 @@ export default function CloudGalleryPage() {
         setCleanupResult(null);
         setShowConfirmCleanup(false);
         try {
-            const res = await fetch('/api/admin/cleanup-storage', { method: 'POST' });
+            const res = await fetch('/api/admin/cleanup-storage', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ forceAll: true })
+            });
             const data = await res.json();
             setCleanupResult(data);
             fetchFiles();
@@ -134,23 +138,7 @@ export default function CloudGalleryPage() {
         });
     };
 
-    const handleDeleteSingle = async (file: SupabaseFile) => {
-        if (!confirm('Hapus file ini secara permanen dari Supabase Storage?')) return;
-        try {
-            const folder = file.folder || 'images';
-            const res = await fetch(`/api/admin/supabase-files?fileName=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(folder)}`, {
-                method: 'DELETE',
-            });
-            if (res.ok) {
-                setFiles(prev => prev.filter(f => f.name !== file.name));
-            } else {
-                alert('Gagal menghapus file.');
-            }
-        } catch (error) {
-            console.error('Failed to delete file', error);
-            alert('Terjadi kesalahan saat menghapus.');
-        }
-    };
+
 
     const handleDownloadSingle = async (file: SupabaseFile) => {
         try {
@@ -361,13 +349,6 @@ export default function CloudGalleryPage() {
                                         >
                                             <Download className="w-4 h-4" />
                                             <span className="text-[10px] font-black uppercase tracking-wider">Download</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteSingle(file)}
-                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-500 transition-colors"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                            <span className="text-[10px] font-black uppercase tracking-wider">Hapus</span>
                                         </button>
                                     </div>
                                 </div>

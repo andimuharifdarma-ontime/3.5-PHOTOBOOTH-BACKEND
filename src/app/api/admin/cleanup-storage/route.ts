@@ -28,7 +28,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await cleanupExpiredPhotos();
+    let forceAll = false;
+    try {
+      const body = await req.json();
+      if (body.forceAll === true) forceAll = true;
+    } catch (e) {
+      // ignore
+    }
+
+    const result = await cleanupExpiredPhotos({ forceAll });
     return NextResponse.json({
       success: result.success,
       deleted: result.deleted,
