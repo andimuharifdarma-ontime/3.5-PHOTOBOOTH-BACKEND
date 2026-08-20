@@ -1441,7 +1441,7 @@ const PreviewModal = ({ type, imageUrl, gifUrl, livePhotoUrl, photos, onClose, o
       title: 'Original Shots',
       render: (
         <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto p-2">
-          {availablePhotos.length > 0 ? availablePhotos.map((p: any, i: number) => (
+          {photos && photos.length > 0 ? photos.map((p: any, i: number) => (
             <div key={i} className="relative group">
               <img src={p.originalUrl || p.dataUrl} className="w-full aspect-[3/4] object-cover rounded-lg shadow-md" />
               <button
@@ -1460,8 +1460,9 @@ const PreviewModal = ({ type, imageUrl, gifUrl, livePhotoUrl, photos, onClose, o
       ),
       onDownload: async () => {
         // Download all photos sequentially with slight delay to prevent browser block
-        for (let i = 0; i < availablePhotos.length; i++) {
-          const p = availablePhotos[i];
+        const photoList = photos || [];
+        for (let i = 0; i < photoList.length; i++) {
+          const p = photoList[i];
           await downloadDirect(p.originalUrl || p.dataUrl, `photo-${i + 1}.png`);
           await new Promise(resolve => setTimeout(resolve, 300));
         }
