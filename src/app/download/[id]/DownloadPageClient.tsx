@@ -13,6 +13,16 @@ import {
   probeAssetReady,
 } from '@/lib/download-polling';
 
+const SUPABASE_CDN = 'https://sbfhpblrixwninecodko.supabase.co/storage/v1/object/public/photobooth-images/images';
+
+const resolveFirstValidUrl = async (urls: string[]): Promise<string | null> => {
+  for (const u of urls) {
+    const ready = await probeAssetReady(u);
+    if (ready) return u;
+  }
+  return null;
+};
+
 const isVideoContent = (url: string) => {
   if (!url) return false;
   const lowerUrl = url.toLowerCase();
@@ -240,16 +250,6 @@ const DownloadPageClient = () => {
           setTimeRemaining(refined.remainingSec);
         })
         .catch(() => {});
-
-const SUPABASE_CDN = 'https://sbfhpblrixwninecodko.supabase.co/storage/v1/object/public/photobooth-images/images';
-
-const resolveFirstValidUrl = async (urls: string[]): Promise<string | null> => {
-  for (const u of urls) {
-    const ready = await probeAssetReady(u);
-    if (ready) return u;
-  }
-  return null;
-};
 
       const primaryUrl = u || `${SUPABASE_CDN}/${cleanId}.png`;
       setImageUrl(primaryUrl);
