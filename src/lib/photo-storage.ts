@@ -3,11 +3,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 const ALL_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'] as const;
 
 export function getExtensionsForPhotoId(id: string): string[] {
-  if (id.endsWith('-meta')) return ['json'];
-  if (id.includes('-live-')) return ['mp4', 'webm'];
-  if (id.includes('-orig-')) return ['jpg', 'jpeg', 'png'];
-  if (id.endsWith('-gif') || id.includes('.gif')) return ['gif'];
-  if (id.endsWith('-bonus')) return ['mp4', 'webm', 'gif'];
+  const lower = id.toLowerCase();
+  if (lower.endsWith('-meta')) return ['json'];
+  if (lower.endsWith('-live') || lower.includes('-live-') || lower.includes('-live')) return ['mp4', 'webm'];
+  if (lower.includes('-orig-') || lower.includes('-orig')) return ['png', 'jpg', 'jpeg'];
+  if (lower.endsWith('-gif') || lower.includes('.gif')) return ['gif'];
+  if (lower.endsWith('-bonus') || lower.includes('-bonus')) return ['mp4', 'webm', 'gif'];
   return ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
 }
 
@@ -47,17 +48,25 @@ export async function resolveSupabasePhotoUrl(
 ): Promise<string | null> {
   const extensions = exts ?? getExtensionsForPhotoId(id);
 
-  const checks = extensions.map(async (ext) => {
-    const storagePath = `images/${id}.${ext}`;
-    const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-    if (!data?.publicUrl) return null;
-    const exists = await headExists(data.publicUrl);
-    if (!exists) return null;
-    return download ? `${data.publicUrl}?download=1` : data.publicUrl;
-  });
+  // Coba cari langsung dengan id, id lowercase, dan id uppercase
+  const idVariants = Array.from(new Set([id, id.toLowerCase(), id.toUpperCase()]));
 
-  const results = await Promise.all(checks);
-  return results.find((url): url is string => url != null) ?? null;
+  for (const curId of idVariants) {
+    const checks = extensions.map(async (ext) => {
+      const storagePath = `images/${curId}.${ext}`;
+      const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+      if (!data?.publicUrl) return null;
+      const exists = await headExists(data.publicUrl);
+      if (!exists) return null;
+      return download ? `${data.publicUrl}?download=1` : data.publicUrl;
+    });
+
+    const results = await Promise.all(checks);
+    const found = results.find((url): url is string => url != null);
+    if (found) return found;
+  }
+
+  return null;
 }
 
 export async function resolveSupabasePhotoUrlFromList(
@@ -76,11 +85,11 @@ export async function resolveSupabasePhotoUrlFromList(
   if (!files?.length) return null;
 
   for (const ext of extensions) {
-    const expectedName = `${id}.${ext}`;
-    const foundFile = files.find((f) => f.name.toLowerCase() === expectedName.toLowerCase());
+    const expectedName = `${id}.${ext}`.toLowerCase();
+    const foundFile = files.find((f) => f.name.toLowerCase() === expectedName);
     if (!foundFile) continue;
 
-    const storagePath = `images/${expectedName}`;
+    const storagePath = `images/${foundFile.name}`;
     const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath, { download });
     return data.publicUrl;
   }
