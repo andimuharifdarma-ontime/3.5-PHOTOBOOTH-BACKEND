@@ -71,16 +71,23 @@ export default withAuth(
 
         const pathname = req.nextUrl.pathname;
 
-        const isPublicKioskApi = (
+        const isPublicApi = (
+            pathname.startsWith("/api/images") ||
+            pathname.startsWith("/api/photo") ||
+            pathname.startsWith("/api/upload-live-photo") ||
+            pathname.startsWith("/api/public") ||
+            pathname.startsWith("/api/cron") ||
             pathname.includes("/api/admin/settings") ||
             pathname.includes("/api/admin/profile") ||
             pathname.includes("/api/themes")
-        ) && req.method === "GET";
+        );
 
-        if (isPublicKioskApi) {
+        if (isPublicApi) {
             const allowedOrigin = getAllowedOrigin(req);
             const response = NextResponse.next();
             response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
+            response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key");
             response.headers.set("Access-Control-Allow-Credentials", "true");
             return response;
         }
@@ -157,9 +164,7 @@ export default withAuth(
             return response;
         }
 
-        const isPublicApi = pathname.startsWith("/api/photo") || pathname.startsWith("/api/cron");
-
-        if (isAdminApi && !isPublicApi) {
+        if (isAdminApi) {
             if (!isAuth) {
                 const allowedOrigin = getAllowedOrigin(req);
                 return new NextResponse(
@@ -222,5 +227,5 @@ export default withAuth(
 );
 
 export const config = {
-    matcher: ["/admin/:path*", "/login", "/api/:path*", "/photo/:path*", "/download/:path*"],
+    matcher: ["/admin/:path*", "/login", "/api/admin/:path*", "/api/auth/:path*"],
 };
