@@ -241,8 +241,18 @@ const DownloadPageClient = () => {
         })
         .catch(() => {});
 
-      const url = u || `${window.location.origin}/api/images/${cleanId}`;
-      setImageUrl(url);
+const SUPABASE_CDN = 'https://sbfhpblrixwninecodko.supabase.co/storage/v1/object/public/photobooth-images/images';
+
+const resolveFirstValidUrl = async (urls: string[]): Promise<string | null> => {
+  for (const u of urls) {
+    const ready = await probeAssetReady(u);
+    if (ready) return u;
+  }
+  return null;
+};
+
+      const primaryUrl = u || `${SUPABASE_CDN}/${cleanId}.png`;
+      setImageUrl(primaryUrl);
 
       if (ug) setGifUrl(ug);
       if (ul) setLivePhotoUrl(ul);
@@ -255,18 +265,18 @@ const DownloadPageClient = () => {
       const ready = await pollUntilReady(
         async () => {
           if (cancelled) return true;
-          try {
-            const res = await fetch(url, { method: 'HEAD', cache: 'no-store', redirect: 'follow' });
-            if (res.status === 410) {
-              setError('expired');
-              return true;
-            }
-            if (res.ok) return true;
-          } catch { }
-          const fallback = await probeAssetReady(url);
-          return !!fallback;
+          const found = await resolveFirstValidUrl([
+            `${SUPABASE_CDN}/${cleanId}.png`,
+            `${SUPABASE_CDN}/${cleanId}.jpg`,
+            `${window.location.origin}/api/images/${cleanId}`,
+          ]);
+          if (found) {
+            setImageUrl(found);
+            return true;
+          }
+          return false;
         },
-        { maxAttempts: 25, initialDelayMs: 600, maxDelayMs: 2500 },
+        { maxAttempts: 25, initialDelayMs: 400, maxDelayMs: 2000 },
       );
 
       if (!cancelled) setIsLoading(false);
@@ -327,10 +337,9 @@ const DownloadPageClient = () => {
       try {
         let photoCount = 4;
         try {
-          const metaRes = await fetch(`/api/images/${imageId}-meta`, { cache: 'no-store' });
+          const metaRes = await fetch(`${SUPABASE_CDN}/${imageId}-meta.json`, { cache: 'no-store' });
           if (metaRes.ok) {
-            const metaText = await metaRes.text();
-            const meta = JSON.parse(metaText);
+            const meta = await metaRes.json();
             if (meta.count) photoCount = meta.count;
           }
         } catch { }
@@ -338,9 +347,12 @@ const DownloadPageClient = () => {
         const origin = window.location.origin;
         const results = await Promise.all(
           Array.from({ length: photoCount }, async (_, i) => {
-            const url = `${origin}/api/images/${imageId}-orig-${i}`;
-            const ready = await probeAssetReady(url);
-            return ready ? { dataUrl: url, originalUrl: url } : null;
+            const found = await resolveFirstValidUrl([
+              `${SUPABASE_CDN}/${imageId}-orig-${i}.jpg`,
+              `${SUPABASE_CDN}/${imageId}-orig-${i}.png`,
+              `${origin}/api/images/${imageId}-orig-${i}`,
+            ]);
+            return found ? { dataUrl: found, originalUrl: found } : null;
           }),
         );
 
@@ -356,10 +368,10 @@ const DownloadPageClient = () => {
       }
     };
 
-    const timer = window.setTimeout(fetchOriginals, 2000);
+    const timer = window.setTimeout(fetchOriginals, 1000);
     const retryTimer = window.setTimeout(() => {
       if (!cancelled) void fetchOriginals();
-    }, 8000);
+    }, 5000);
 
     return () => {
       cancelled = true;
@@ -382,9 +394,14 @@ const DownloadPageClient = () => {
       await pollUntilReady(
         async () => {
           if (cancelled || queryUg) return true;
-          const url = await probeAssetReady(`${origin}/api/images/${imageId}-bonus`);
-          if (url) {
-            setGifUrl(url);
+          const found = await resolveFirstValidUrl([
+            `${SUPABASE_CDN}/${imageId}-bonus.mp4`,
+            `${SUPABASE_CDN}/${imageId}-bonus.webm`,
+            `${SUPABASE_CDN}/${imageId}-bonus.gif`,
+            `${origin}/api/images/${imageId}-bonus`,
+          ]);
+          if (found) {
+            setGifUrl(found);
             return true;
           }
           return false;
@@ -399,14 +416,18 @@ const DownloadPageClient = () => {
       const found = await pollUntilReady(
         async () => {
           if (cancelled || queryUl) return true;
-          const url = await probeAssetReady(`${origin}/api/images/${imageId}-live`);
-          if (url) {
-            setLivePhotoUrl(url);
+          const foundUrl = await resolveFirstValidUrl([
+            `${SUPABASE_CDN}/${imageId}-live.mp4`,
+            `${SUPABASE_CDN}/${imageId}-live.webm`,
+            `${origin}/api/images/${imageId}-live`,
+          ]);
+          if (foundUrl) {
+            setLivePhotoUrl(foundUrl);
             return true;
           }
           return false;
         },
-        { maxAttempts: 48, initialDelayMs: 500, maxDelayMs: 2500 },
+        { maxAttempts: 48, initialDelayMs: 400, maxDelayMs: 2000 },
       );
 
       if (!found && !cancelled && photos.filter((p) => !!p.livePhotoUrl).length > 0) {
