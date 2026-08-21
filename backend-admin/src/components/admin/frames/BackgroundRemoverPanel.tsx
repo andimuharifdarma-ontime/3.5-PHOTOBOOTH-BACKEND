@@ -331,9 +331,13 @@ const BackgroundRemoverPanel = forwardRef<
     ref,
     () => ({
       applyPendingChanges: applyChromaKey,
-      hasPendingPreview: () => previewEnabled && hasLivePreviewRef.current,
+      hasPendingPreview: () => {
+        const colorChanged = colorHex.toLowerCase() !== (initialChromaKeyColor || '#ffffff').toLowerCase();
+        const toleranceChanged = tolerance !== (initialChromaKeyTolerance ?? 35);
+        return previewEnabled && hasLivePreviewRef.current && (colorChanged || toleranceChanged);
+      },
     }),
-    [applyChromaKey, previewEnabled],
+    [applyChromaKey, previewEnabled, colorHex, tolerance, initialChromaKeyColor, initialChromaKeyTolerance],
   );
 
   const handleReset = async () => {
