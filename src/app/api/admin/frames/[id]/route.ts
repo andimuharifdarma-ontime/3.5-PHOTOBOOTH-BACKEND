@@ -164,8 +164,8 @@ export async function PUT(request: Request, { params }: Params) {
         // Audit log (non-blocking)
         try {
             await logAuditEvent({
-                userId: user.id || 'unknown',
-                userEmail: user.email || 'unknown',
+                userId: sessionUser.id || 'unknown',
+                userEmail: sessionUser.email || 'unknown',
                 action: 'UPDATE',
                 resource: 'frame',
                 resourceId: id,
@@ -206,8 +206,17 @@ export async function DELETE(request: Request, { params }: Params) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const user = session.user as any;
-        const canManage = user.role === 'ADMIN' || user.canManageThemes === true;
+        const sessionUser = session.user as any;
+        let canManage = sessionUser?.role === 'ADMIN' || sessionUser?.role === 'KARYAWAN' || sessionUser?.canManageThemes === true;
+
+        if (!canManage && sessionUser?.email) {
+            const dbUser = await prisma.adminUser.findUnique({
+                where: { email: sessionUser.email }
+            });
+            if (dbUser) {
+                canManage = dbUser.role === 'ADMIN' || dbUser.role === 'KARYAWAN' || dbUser.canManageThemes === true;
+            }
+        }
 
         if (!canManage) {
             return NextResponse.json({ error: 'Forbidden: Management permission required' }, { status: 403 });
@@ -227,8 +236,8 @@ export async function DELETE(request: Request, { params }: Params) {
 
         // Audit log
         await logAuditEvent({
-            userId: user.id || 'unknown',
-            userEmail: user.email || 'unknown',
+            userId: sessionUser.id || 'unknown',
+            userEmail: sessionUser.email || 'unknown',
             action: 'DELETE',
             resource: 'frame',
             resourceId: id,
