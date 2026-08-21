@@ -300,9 +300,20 @@ export default function SlotEditorPage() {
 
             if (res.ok) {
                 router.push(`/admin/themes/${themeId}/frames`);
+            } else {
+                const text = await res.text();
+                let errMsg = 'Gagal menyimpan frame';
+                try {
+                    const json = JSON.parse(text);
+                    errMsg = json.error || errMsg;
+                } catch {
+                    errMsg = `Error ${res.status}: ${text.slice(0, 100)}`;
+                }
+                alert(errMsg);
             }
         } catch (error) {
             console.error('Failed to save slots:', error);
+            alert((error as Error).message || 'Gagal menyimpan slot frame');
         } finally {
             setSaving(false);
         }

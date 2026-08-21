@@ -45,6 +45,15 @@ interface BackgroundRemoverPanelProps {
 const PREVIEW_DEBOUNCE_MS = 180;
 const SETTINGS_SAVE_DEBOUNCE_MS = 600;
 
+async function parseSafeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text || `HTTP ${res.status} ${res.statusText}` };
+  }
+}
+
 async function uploadFrameImage(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
@@ -54,8 +63,8 @@ async function uploadFrameImage(file: File): Promise<string> {
     body: formData,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Upload gagal');
+  const data = await parseSafeJson(res);
+  if (!res.ok) throw new Error(data.error || `Upload gagal (${res.status})`);
   return data.url;
 }
 
@@ -70,8 +79,8 @@ async function persistChromaSettings(
     body: JSON.stringify({ chromaKeyColor, chromaKeyTolerance }),
   });
 
+  const data = await parseSafeJson(res);
   if (!res.ok) {
-    const data = await res.json();
     throw new Error(data.error || 'Gagal menyimpan pengaturan chroma key');
   }
 }
@@ -276,13 +285,13 @@ const BackgroundRemoverPanel = forwardRef<
         }),
       });
 
+      const data = await parseSafeJson(res);
       if (!res.ok) {
-        const data = await res.json();
         const detail = data.details ? `\n${data.details}` : '';
         throw new Error((data.error || 'Gagal menyimpan frame') + detail);
       }
 
-      const saved = await res.json();
+      const saved = data;
 
       revokePreviewUrl();
       hasLivePreviewRef.current = false;
@@ -344,8 +353,8 @@ const BackgroundRemoverPanel = forwardRef<
         }),
       });
 
+      const data = await parseSafeJson(res);
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Gagal reset frame');
       }
 
