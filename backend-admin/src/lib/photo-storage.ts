@@ -3,11 +3,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 const ALL_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'] as const;
 
 export function getExtensionsForPhotoId(id: string): string[] {
-  if (id.endsWith('-meta')) return ['json'];
-  if (id.includes('-live-')) return ['mp4', 'webm'];
-  if (id.includes('-orig-')) return ['jpg', 'jpeg', 'png'];
-  if (id.endsWith('-gif') || id.includes('.gif')) return ['gif'];
-  if (id.endsWith('-bonus')) return ['mp4', 'webm', 'gif'];
+  const lower = id.toLowerCase();
+  if (lower.endsWith('-meta')) return ['json'];
+  if (lower.endsWith('-live') || lower.includes('-live-') || lower.includes('-live')) return ['mp4', 'webm'];
+  if (lower.includes('-orig-') || lower.includes('-orig')) return ['png', 'jpg', 'jpeg'];
+  if (lower.endsWith('-gif') || lower.includes('.gif')) return ['gif'];
+  if (lower.endsWith('-bonus') || lower.includes('-bonus')) return ['mp4', 'webm', 'gif'];
   return ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'json'];
 }
 
