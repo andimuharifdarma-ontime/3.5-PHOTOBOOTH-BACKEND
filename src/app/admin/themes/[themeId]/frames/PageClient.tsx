@@ -150,10 +150,7 @@ export default function ThemeFramesPage() {
         if (file) {
             setImageFile(file);
             const objectUrl = URL.createObjectURL(file);
-            setFormData((prev) => ({
-                ...prev,
-                imageUrl: objectUrl,
-            }));
+            setFormData({ ...formData, imageUrl: objectUrl });
         }
     };
 
@@ -174,18 +171,8 @@ export default function ThemeFramesPage() {
             let imageUrl = formData.imageUrl;
             let previewUrl = formData.previewUrl;
 
-            // Upload imageFile and previewFile in parallel for maximum speed
-            const [uploadedImageUrl, uploadedPreviewUrl] = await Promise.all([
-                imageFile ? uploadFile(imageFile) : Promise.resolve(null),
-                previewFile ? uploadFile(previewFile) : Promise.resolve(null),
-            ]);
-
-            if (uploadedImageUrl) imageUrl = uploadedImageUrl;
-            if (uploadedPreviewUrl) {
-                previewUrl = uploadedPreviewUrl;
-            } else if (imageFile || !previewUrl || previewUrl.startsWith('blob:')) {
-                previewUrl = imageUrl;
-            }
+            if (imageFile) imageUrl = await uploadFile(imageFile);
+            if (previewFile) previewUrl = await uploadFile(previewFile);
 
             const url = editingFrame ? `/api/admin/frames/${editingFrame.id}` : '/api/admin/frames';
             const method = editingFrame ? 'PUT' : 'POST';
@@ -196,7 +183,6 @@ export default function ThemeFramesPage() {
                 body: JSON.stringify({
                     ...formData,
                     imageUrl,
-                    originalImageUrl: imageUrl,
                     previewUrl,
                     themeId,
                     slots: editingFrame?.slots || [],
@@ -212,18 +198,13 @@ export default function ThemeFramesPage() {
                     setShowModal(false);
                     resetForm();
                 }
-            } else {
-                const errData = await res.json().catch(() => ({}));
-                alert(errData.error || 'Gagal menyimpan frame');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Failed to save frame:', error);
-            alert(`Gagal mengunggah frame: ${error.message || error}`);
         } finally {
             setUploading(false);
         }
     };
-
 
     const handleDelete = (id: string) => {
         setFrameToDelete(id);
@@ -581,7 +562,7 @@ export default function ThemeFramesPage() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={uploading || !formData.name || !formData.imageUrl}
+                                        disabled={uploading || !formData.name || !formData.imageUrl || !formData.previewUrl}
                                         className="flex-[2] px-8 py-4 bg-[#4A3F35] text-[#FDFBF7] rounded-xl hover:bg-[#2D2824] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-[#4A3F35]/10"
                                     >
                                         {uploading ? 'Memproses Studio...' : editingFrame ? 'Simpan Perubahan' : 'Lanjut ke Editor Slot'}

@@ -53,17 +53,7 @@ export async function POST(request: Request) {
         }
 
         const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-        let mimeType = file.type?.toLowerCase();
-
-        if (!mimeType || !allowedTypes.includes(mimeType)) {
-            const ext = file.name?.split('.').pop()?.toLowerCase();
-            if (ext === 'png') mimeType = 'image/png';
-            else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-            else if (ext === 'webp') mimeType = 'image/webp';
-            else if (ext === 'gif') mimeType = 'image/gif';
-        }
-
-        if (!mimeType || !allowedTypes.includes(mimeType)) {
+        if (!allowedTypes.includes(file.type)) {
             return NextResponse.json({ error: 'Invalid file type. Only PNG, JPG, WEBP, and GIF are allowed.' }, { status: 400 });
         }
 
@@ -71,51 +61,40 @@ export async function POST(request: Request) {
         const bytes = await file.arrayBuffer();
         const inputBuffer = Buffer.from(bytes);
 
-        const optimized = await optimizeImageUpload(inputBuffer, mimeType);
+        const optimized = await optimizeImageUpload(inputBuffer, file.type);
         const baseName = `${timestamp}`;
-
         const mainPath = `uploads/${baseName}.${optimized.main.ext}`;
         const thumbPath = optimized.thumb ? `uploads/thumbs/${baseName}.${optimized.thumb.ext}` : null;
 
-        // Convert Buffer to Blob to prevent Next.js fetch from corrupting binary data with UTF-8 replacement characters
-        const mainBlob = new Blob([optimized.main.buffer as unknown as BlobPart], { type: optimized.main.contentType });
+        const { error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(mainPath, optimized.main.buffer, {
+                contentType: optimized.main.contentType,
+                upsert: true,
+                cacheControl: '31536000',
+            });
 
-        const uploadPromises: Promise<any>[] = [
-            supabase.storage
-                .from(BUCKET_NAME)
-                .upload(mainPath, mainBlob, {
-                    contentType: optimized.main.contentType,
-                    upsert: true,
-                    cacheControl: '31536000',
-                }),
-        ];
-
-        if (optimized.thumb && thumbPath) {
-            const thumbBlob = new Blob([optimized.thumb.buffer as unknown as BlobPart], { type: optimized.thumb.contentType });
-            uploadPromises.push(
-                supabase.storage
-                    .from(BUCKET_NAME)
-                    .upload(thumbPath, thumbBlob, {
-                        contentType: optimized.thumb.contentType,
-                        upsert: true,
-                        cacheControl: '31536000',
-                    })
-            );
-        }
-
-        const results = await Promise.all(uploadPromises);
-        const mainResult = results[0];
-        const thumbResult = optimized.thumb ? results[1] : null;
-
-        if (mainResult.error) {
-            console.error('Supabase main upload error:', mainResult.error);
-            return NextResponse.json({ error: `Upload failed: ${mainResult.error.message}` }, { status: 500 });
+        if (uploadError) {
+            console.error('Supabase upload error:', uploadError);
+            return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
         }
 
         let thumbUrl: string | null = null;
-        if (thumbPath && thumbResult && !thumbResult.error) {
-            const { data: thumbData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(thumbPath);
-            thumbUrl = thumbData.publicUrl;
+        if (optimized.thumb && thumbPath) {
+            const { error: thumbError } = await supabase.storage
+                .from(BUCKET_NAME)
+                .upload(thumbPath, optimized.thumb.buffer, {
+                    contentType: optimized.thumb.contentType,
+                    upsert: true,
+                    cacheControl: '31536000',
+                });
+
+            if (!thumbError) {
+                const { data: thumbData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(thumbPath);
+                thumbUrl = thumbData.publicUrl;
+            } else {
+                console.warn('Thumb upload failed, main image still saved:', thumbError.message);
+            }
         }
 
         const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(mainPath);

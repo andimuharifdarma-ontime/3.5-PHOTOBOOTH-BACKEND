@@ -95,11 +95,7 @@ export default function CloudGalleryPage() {
         setCleanupResult(null);
         setShowConfirmCleanup(false);
         try {
-            const res = await fetch('/api/admin/cleanup-storage', { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ forceAll: true })
-            });
+            const res = await fetch('/api/admin/cleanup-storage', { method: 'POST' });
             const data = await res.json();
             setCleanupResult(data);
             fetchFiles();
@@ -137,8 +133,6 @@ export default function CloudGalleryPage() {
             return false;
         });
     };
-
-
 
     const handleDownloadSingle = async (file: SupabaseFile) => {
         try {
@@ -342,7 +336,7 @@ export default function CloudGalleryPage() {
                                         )}
                                     
                                     {/* Hover Overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 gap-2">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                                         <button
                                             onClick={() => handleDownloadSingle(file)}
                                             className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#A68B67] text-white rounded-lg shadow-lg hover:bg-white hover:text-black transition-colors"
