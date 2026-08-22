@@ -100,11 +100,13 @@ export async function cleanupExpiredPhotos(options?: {
   forceAll?: boolean;
 }): Promise<CleanupResult> {
   const folders = options?.folders ?? CLEANUP_FOLDERS;
-  const forceAll = options?.forceAll ?? false;
-  const retentionDays = await getPhotoRetentionDays();
+  const forceAll = options?.forceAll === true;
+  const retentionDays = forceAll ? 0 : await getPhotoRetentionDays();
   const nowMs = Date.now();
   const cutoffDate = new Date(nowMs);
-  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  if (!forceAll) {
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  }
 
   const supabase = getCleanupSupabase();
   let totalDeleted = 0;
@@ -128,9 +130,11 @@ export async function cleanupExpiredPhotos(options?: {
     totalChecked += files.length;
     folderResults[folder].checked = files.length;
 
-    const expiredFiles = forceAll ? files : files.filter((file) =>
-      isStorageFileExpired(file.name, file.created_at, retentionDays, nowMs),
-    );
+    const expiredFiles = forceAll
+      ? files
+      : files.filter((file) =>
+          isStorageFileExpired(file.name, file.created_at, retentionDays, nowMs),
+        );
 
     totalExpired += expiredFiles.length;
     if (expiredFiles.length === 0) continue;

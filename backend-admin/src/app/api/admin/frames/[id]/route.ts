@@ -124,7 +124,7 @@ export async function PUT(request: Request, { params }: Params) {
 
         const body = await request.json();
 
-        let frame;
+        let frame: any;
         let skippedColumns: string[] = [];
 
         const updateOptions = {
@@ -132,33 +132,48 @@ export async function PUT(request: Request, { params }: Params) {
             includeChromaKeySettings: true,
         };
 
-        try {
-            frame = await prisma.frame.update({
-                where: { id },
-                data: buildFrameUpdateData(body, updateOptions),
-            });
-        } catch (updateError) {
-            if (body.originalImageUrl !== undefined && isMissingOptionalFrameColumn(updateError, 'originalImageUrl')) {
-                updateOptions.includeOriginalImageUrl = false;
-                skippedColumns.push('originalImageUrl');
-            }
-            if (
-                (body.chromaKeyColor !== undefined || body.chromaKeyTolerance !== undefined) &&
-                (isMissingOptionalFrameColumn(updateError, 'chromaKeyColor') ||
-                    isMissingOptionalFrameColumn(updateError, 'chromaKeyTolerance'))
-            ) {
-                updateOptions.includeChromaKeySettings = false;
-                skippedColumns.push('chromaKeyColor/chromaKeyTolerance');
-            }
-
-            if (skippedColumns.length > 0) {
+        let attempt = 0;
+        const maxAttempts = 3;
+        while (attempt < maxAttempts) {
+            try {
                 frame = await prisma.frame.update({
                     where: { id },
                     data: buildFrameUpdateData(body, updateOptions),
                 });
-            } else {
-                throw updateError;
+                break;
+            } catch (updateError) {
+                attempt++;
+                let columnDeactivated = false;
+
+                if (
+                    updateOptions.includeOriginalImageUrl &&
+                    body.originalImageUrl !== undefined &&
+                    isMissingOptionalFrameColumn(updateError, 'originalImageUrl')
+                ) {
+                    updateOptions.includeOriginalImageUrl = false;
+                    skippedColumns.push('originalImageUrl');
+                    columnDeactivated = true;
+                }
+
+                if (
+                    updateOptions.includeChromaKeySettings &&
+                    (body.chromaKeyColor !== undefined || body.chromaKeyTolerance !== undefined) &&
+                    (isMissingOptionalFrameColumn(updateError, 'chromaKeyColor') ||
+                        isMissingOptionalFrameColumn(updateError, 'chromaKeyTolerance'))
+                ) {
+                    updateOptions.includeChromaKeySettings = false;
+                    skippedColumns.push('chromaKeyColor/chromaKeyTolerance');
+                    columnDeactivated = true;
+                }
+
+                if (!columnDeactivated || attempt >= maxAttempts) {
+                    throw updateError;
+                }
             }
+        }
+
+        if (!frame) {
+            throw new Error('Gagal memperbarui frame');
         }
 
         // Audit log (non-blocking)
