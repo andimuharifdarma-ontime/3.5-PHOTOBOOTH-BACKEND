@@ -1,5 +1,3 @@
-import sharp from 'sharp';
-
 const MAX_MAIN_WIDTH = 1920;
 const THUMB_WIDTH = 400;
 const MAIN_QUALITY = 85;
@@ -33,6 +31,7 @@ export async function optimizeImageUpload(
   }
 
   try {
+    const sharp = (await import('sharp')).default;
     const pipeline = sharp(input, { failOn: 'none' }).rotate();
 
     const mainBuffer = await pipeline
@@ -82,6 +81,7 @@ export async function createThumbnailFromBuffer(
   maxWidth = THUMB_WIDTH,
 ): Promise<Buffer> {
   try {
+    const sharp = (await import('sharp')).default;
     return await sharp(input, { failOn: 'none' })
       .rotate()
       .resize({ width: maxWidth, withoutEnlargement: true })
