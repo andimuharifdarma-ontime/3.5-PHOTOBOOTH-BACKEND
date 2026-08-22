@@ -300,20 +300,9 @@ export default function SlotEditorPage() {
 
             if (res.ok) {
                 router.push(`/admin/themes/${themeId}/frames`);
-            } else {
-                const text = await res.text();
-                let errMsg = 'Gagal menyimpan frame';
-                try {
-                    const json = JSON.parse(text);
-                    errMsg = json.error || errMsg;
-                } catch {
-                    errMsg = `Error ${res.status}: ${text.slice(0, 100)}`;
-                }
-                alert(errMsg);
             }
         } catch (error) {
             console.error('Failed to save slots:', error);
-            alert((error as Error).message || 'Gagal menyimpan slot frame');
         } finally {
             setSaving(false);
         }
@@ -404,17 +393,8 @@ export default function SlotEditorPage() {
             alt={frame.name}
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             draggable={false}
-            onError={(e) => {
-                const target = e.currentTarget;
-                if (originalImageUrl && target.src !== originalImageUrl) {
-                    target.src = originalImageUrl;
-                } else if (frame?.imageUrl && target.src !== frame.imageUrl) {
-                    target.src = frame.imageUrl;
-                }
-            }}
         />
     );
-
 
     return (
         <div className="space-y-10 pb-20">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/api-auth';
+import { withSupabaseTransform } from '@/lib/image-url';
 
 const BUCKET_NAME = 'photobooth-images';
 
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
             return {
                 name: file.name,
                 url: urlData.publicUrl,
+                thumbUrl: withSupabaseTransform(urlData.publicUrl, { width: 320, quality: 70 }),
                 created_at: file.created_at,
                 metadata: file.metadata
             };
