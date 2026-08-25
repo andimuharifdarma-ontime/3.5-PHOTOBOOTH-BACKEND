@@ -85,6 +85,14 @@ async function persistChromaSettings(
   }
 }
 
+function getProxiedImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('blob:') || !url.startsWith('http')) {
+    return url;
+  }
+  return `/api/admin/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
 const BackgroundRemoverPanel = forwardRef<
   BackgroundRemoverPanelHandle,
   BackgroundRemoverPanelProps
@@ -180,7 +188,7 @@ const BackgroundRemoverPanel = forwardRef<
       setLoadingImage(true);
       setError(null);
       try {
-        const image = await loadImage(processingSourceUrl);
+        const image = await loadImage(getProxiedImageUrl(processingSourceUrl));
         if (!cancelled) setLoadedImage(image);
       } catch (err) {
         if (!cancelled) {
@@ -390,6 +398,23 @@ const BackgroundRemoverPanel = forwardRef<
     onPickedColorConsumed();
   }, [pickedColor, onEyedropperActiveChange, onPickedColorConsumed]);
 
+  const handleEyedropperClick = async () => {
+    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
+      try {
+        const eyeDropper = new (window as any).EyeDropper();
+        const result = await eyeDropper.open();
+        const hex = result.sRGBHex;
+        setColorHex(hex);
+        setDebouncedColorHex(hex);
+        setPreviewEnabled(true);
+      } catch (err) {
+        console.log('EyeDropper cancelled or failed:', err);
+      }
+    } else {
+      onEyedropperActiveChange(!eyedropperActive);
+    }
+  };
+
   return (
     <div className="bg-white p-8 rounded-3xl border border-[#EAE1D3] shadow-md space-y-6">
       <div className="flex items-center gap-3 text-[#A68B67]">
@@ -404,7 +429,7 @@ const BackgroundRemoverPanel = forwardRef<
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => onEyedropperActiveChange(!eyedropperActive)}
+          onClick={handleEyedropperClick}
           disabled={loadingImage || !loadedImage}
           className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${
             eyedropperActive

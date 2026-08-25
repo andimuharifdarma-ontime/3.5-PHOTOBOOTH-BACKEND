@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Rnd } from 'react-rnd';
-import { ArrowLeft, Plus, Trash2, Save, Eye, EyeOff, Move, Layers, RotateCw, Square } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Eye, EyeOff, Move, Layers, RotateCw, Square, Sparkles } from 'lucide-react';
 import BackgroundRemoverPanel, {
     type BackgroundRemoverPanelHandle,
 } from '@/components/admin/frames/BackgroundRemoverPanel';
@@ -52,6 +52,205 @@ function snapCanvasDimension(value: number): number {
     return Math.max(CHECKER_CELL_PX * 2, snapped);
 }
 
+function getProxiedImageUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('blob:') || !url.startsWith('http')) {
+        return url;
+    }
+    return `/api/admin/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
+function runAutoDetectSlots(image: HTMLImageElement, useOnlyTransparency: boolean): Slot[] {
+    const canvas = document.createElement('canvas');
+    const scaleWidth = 300;
+    const scaleHeight = Math.round(300 * (image.naturalHeight / image.naturalWidth));
+    canvas.width = scaleWidth;
+    canvas.height = scaleHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [];
+    ctx.drawImage(image, 0, 0, scaleWidth, scaleHeight);
+
+    const imgData = ctx.getImageData(0, 0, scaleWidth, scaleHeight);
+    const data = imgData.data;
+
+    // Step 1: Create a binary mask of potential slot pixels
+    const isCandidate = new Uint8Array(scaleWidth * scaleHeight);
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+        const a = data[i+3];
+        const idx = i / 4;
+
+        let isCand = false;
+        if (useOnlyTransparency) {
+            isCand = a < 15;
+        } else {
+            const isTransparent = a < 15;
+            const isWhite = r > 235 && g > 235 && b > 225 &&
+                            Math.abs(r - g) < 12 &&
+                            Math.abs(r - b) < 15 &&
+                            Math.abs(g - b) < 12;
+            isCand = isTransparent || isWhite;
+        }
+
+        if (isCand) {
+            isCandidate[idx] = 1;
+        }
+    }
+
+    // Step 2: Perform dilation (smaller radius for transparency mode to keep exact border sizes)
+    const dilatedCandidate = new Uint8Array(scaleWidth * scaleHeight);
+    const radius = useOnlyTransparency ? 1 : 3;
+    for (let y = 0; y < scaleHeight; y++) {
+        for (let x = 0; x < scaleWidth; x++) {
+            const idx = y * scaleWidth + x;
+            if (isCandidate[idx] === 1) {
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const ny = y + dy;
+                        const nx = x + dx;
+                        if (nx >= 0 && nx < scaleWidth && ny >= 0 && ny < scaleHeight) {
+                            dilatedCandidate[ny * scaleWidth + nx] = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 3: Find connected components (BFS)
+    const visited = new Uint8Array(scaleWidth * scaleHeight);
+    const components: { minX: number; maxX: number; minY: number; maxY: number; count: number }[] = [];
+
+    for (let y = 0; y < scaleHeight; y++) {
+        for (let x = 0; x < scaleWidth; x++) {
+            const idx = y * scaleWidth + x;
+            if (dilatedCandidate[idx] === 1 && visited[idx] === 0) {
+                let minX = x, maxX = x, minY = y, maxY = y;
+                let count = 0;
+                const queue: number[] = [idx];
+                visited[idx] = 1;
+
+                let qHead = 0;
+                while (qHead < queue.length) {
+                    const currIdx = queue[qHead++];
+                    count++;
+                    const cx = currIdx % scaleWidth;
+                    const cy = Math.floor(currIdx / scaleWidth);
+
+                    if (cx < minX) minX = cx;
+                    if (cx > maxX) maxX = cx;
+                    if (cy < minY) minY = cy;
+                    if (cy > maxY) maxY = cy;
+
+                    const neighbors = [
+                        { nx: cx - 1, ny: cy },
+                        { nx: cx + 1, ny: cy },
+                        { nx: cx, ny: cy - 1 },
+                        { nx: cx, ny: cy + 1 }
+                    ];
+
+                    for (const { nx, ny } of neighbors) {
+                        if (nx >= 0 && nx < scaleWidth && ny >= 0 && ny < scaleHeight) {
+                            const nIdx = ny * scaleWidth + nx;
+                            if (dilatedCandidate[nIdx] === 1 && visited[nIdx] === 0) {
+                                visited[nIdx] = 1;
+                                queue.push(nIdx);
+                            }
+                        }
+                    }
+                }
+
+                components.push({ minX, maxX, minY, maxY, count });
+            }
+        }
+    }
+
+    // Step 4: Filter components that look like rectangles
+    const detectedSlots: Slot[] = [];
+    const minDensity = useOnlyTransparency ? 0.8 : 0.35;
+    for (const c of components) {
+        const w = c.maxX - c.minX + 1;
+        const h = c.maxY - c.minY + 1;
+        const area = w * h;
+        const density = c.count / area;
+
+        const minDim = 15;
+        const ratio = w / h;
+        if (
+            w >= minDim &&
+            h >= minDim &&
+            w < scaleWidth * 0.9 &&
+            h < scaleHeight * 0.9 &&
+            density > minDensity &&
+            ratio >= 0.5 &&
+            ratio <= 1.8
+        ) {
+            const xNorm = c.minX / scaleWidth;
+            const yNorm = c.minY / scaleHeight;
+            const wNorm = w / scaleWidth;
+            const hNorm = h / scaleHeight;
+
+            detectedSlots.push({
+                id: `slot-auto-${Math.random().toString(36).substr(2, 9)}`,
+                x: Number(xNorm.toFixed(4)),
+                y: Number(yNorm.toFixed(4)),
+                width: Number(wNorm.toFixed(4)),
+                height: Number(hNorm.toFixed(4)),
+                rotation: 0,
+                borderRadius: 0,
+            });
+        }
+    }
+
+    // Step 5: Sort slots from top to bottom (y), then left to right (x)
+    detectedSlots.sort((a, b) => {
+        if (Math.abs(a.y - b.y) < 0.03) {
+            return a.x - b.x;
+        }
+        return a.y - b.y;
+    });
+
+    // Step 6: Remove sub-components (boxes that are inside other boxes)
+    const nonOverlappingSlots: Slot[] = [];
+    for (let i = 0; i < detectedSlots.length; i++) {
+        let isInsideAnother = false;
+        for (let j = 0; j < detectedSlots.length; j++) {
+            if (i === j) continue;
+            const a = detectedSlots[i];
+            const b = detectedSlots[j];
+
+            const aMinX = a.x;
+            const aMaxX = a.x + a.width;
+            const aMinY = a.y;
+            const aMaxY = a.y + a.height;
+
+            const bMinX = b.x;
+            const bMaxX = b.x + b.width;
+            const bMinY = b.y;
+            const bMaxY = b.y + b.height;
+
+            const isContained = 
+                aMinX >= bMinX - 0.02 && 
+                aMaxX <= bMaxX + 0.02 && 
+                aMinY >= bMinY - 0.02 && 
+                aMaxY <= bMaxY + 0.02;
+
+            if (isContained && (a.width * a.height) < (b.width * b.height)) {
+                isInsideAnother = true;
+                break;
+            }
+        }
+        if (!isInsideAnother) {
+            nonOverlappingSlots.push(detectedSlots[i]);
+        }
+    }
+
+    return nonOverlappingSlots;
+}
+
 export default function SlotEditorPage() {
     const params = useParams();
     const router = useRouter();
@@ -83,6 +282,18 @@ export default function SlotEditorPage() {
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
     const [maxSlots, setMaxSlots] = useState<number | string>(4); // Jumlah slot yang diinginkan
+    const [detectionModal, setDetectionModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'success' | 'error';
+        detectedSlots?: Slot[];
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'success',
+    });
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -127,7 +338,7 @@ export default function SlotEditorPage() {
         if (!sourceUrl) return;
 
         let cancelled = false;
-        loadImage(sourceUrl)
+        loadImage(getProxiedImageUrl(sourceUrl))
             .then((image) => {
                 if (!cancelled) eyedropperImageRef.current = image;
             })
@@ -244,6 +455,71 @@ export default function SlotEditorPage() {
         };
         setSlots([...slots, newSlot]);
         setSelectedSlot(newSlot.id);
+    };
+
+    const detectSlots = async () => {
+        const sourceUrl = previewImageUrl || activeImageUrl || originalImageUrl || frame?.imageUrl;
+        if (!sourceUrl) {
+            setDetectionModal({
+                isOpen: true,
+                title: "Gagal Mendeteksi",
+                message: "Gambar frame tidak ditemukan.",
+                type: 'error',
+            });
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const image = await loadImage(getProxiedImageUrl(sourceUrl));
+            
+            // Count transparent pixels to decide scan mode
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 300;
+            tempCanvas.height = Math.round(300 * (image.naturalHeight / image.naturalWidth));
+            const tempCtx = tempCanvas.getContext('2d');
+            let useOnlyTransparency = false;
+            if (tempCtx) {
+                tempCtx.drawImage(image, 0, 0, tempCanvas.width, tempCanvas.height);
+                const tempData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+                let transparentCount = 0;
+                for (let i = 0; i < tempData.length; i += 4) {
+                    if (tempData[i+3] < 15) {
+                        transparentCount++;
+                    }
+                }
+                useOnlyTransparency = transparentCount > 100;
+            }
+
+            const detected = runAutoDetectSlots(image, useOnlyTransparency);
+            if (detected.length === 0) {
+                setDetectionModal({
+                    isOpen: true,
+                    title: "Deteksi Otomatis Gagal",
+                    message: "Tidak berhasil mendeteksi slot foto secara otomatis. Pastikan slot foto berwarna putih bersih atau memiliki latar belakang transparan.",
+                    type: 'error',
+                });
+                return;
+            }
+
+            setDetectionModal({
+                isOpen: true,
+                title: "Deteksi Otomatis Berhasil",
+                message: `Berhasil mendeteksi ${detected.length} slot foto secara otomatis sesuai dengan posisi pada desain frame. Apakah Anda ingin mengganti konfigurasi slot saat ini?`,
+                type: 'success',
+                detectedSlots: detected,
+            });
+        } catch (err) {
+            console.error("Gagal memuat gambar frame:", err);
+            setDetectionModal({
+                isOpen: true,
+                title: "Gagal Memuat Gambar",
+                message: "Gagal memuat gambar frame untuk mendeteksi slot. Periksa koneksi internet Anda.",
+                type: 'error',
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const removeSlot = (id: string) => {
@@ -428,6 +704,13 @@ export default function SlotEditorPage() {
                     >
                         {showPreview ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         Preview Mode
+                    </button>
+                    <button
+                        onClick={detectSlots}
+                        className="flex items-center gap-3 px-6 py-4 rounded-xl transition-all shadow-lg text-[10px] font-bold uppercase tracking-widest bg-teal-600 hover:bg-teal-700 text-white shadow-teal-900/10"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        Deteksi Otomatis
                     </button>
                     <button
                         onClick={addSlot}
@@ -746,6 +1029,60 @@ export default function SlotEditorPage() {
                         </div>
                     </div>
                 </div>
+            {/* Detection Modal */}
+            {detectionModal.isOpen && (
+                <div className="fixed inset-0 bg-[#4A3F35]/40 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-[#FDFBF7] border border-[#EAE1D3] rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6 animate-scaleIn">
+                        <div className="text-center space-y-4">
+                            {detectionModal.type === 'success' ? (
+                                <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mx-auto text-teal-600">
+                                    <Sparkles className="w-8 h-8" />
+                                </div>
+                            ) : (
+                                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500">
+                                    <Plus className="w-8 h-8 rotate-45" />
+                                </div>
+                            )}
+                            <h3 className="text-xl font-sans font-bold text-[#4A3F35] tracking-tight">{detectionModal.title}</h3>
+                            <p className="text-xs text-[#8C7E6A] leading-relaxed">{detectionModal.message}</p>
+                        </div>
+                        
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            {detectionModal.type === 'success' ? (
+                                <>
+                                    <button
+                                        onClick={() => setDetectionModal(prev => ({ ...prev, isOpen: false }))}
+                                        className="px-6 py-3 rounded-xl border border-[#EAE1D3] text-[#8C7E6A] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5F1EA] transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (detectionModal.detectedSlots) {
+                                                setSlots(detectionModal.detectedSlots);
+                                                if (detectionModal.detectedSlots.length > 0) {
+                                                    setSelectedSlot(detectionModal.detectedSlots[0].id);
+                                                }
+                                            }
+                                            setDetectionModal(prev => ({ ...prev, isOpen: false }));
+                                        }}
+                                        className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-900/10"
+                                    >
+                                        Terapkan
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setDetectionModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="w-full px-6 py-3 rounded-xl bg-[#4A3F35] hover:bg-[#2D2824] text-white font-bold text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    Tutup
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
             </div>
         </div>
     );

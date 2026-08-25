@@ -93,7 +93,7 @@ function clampTolerance(tolerance: number): number {
 /** Jarak RGB Euclidean maksimum untuk dianggap "mirip" warna pick (≈8–150). */
 export function toleranceToDistance(tolerance: number): number {
   const t = clampTolerance(tolerance);
-  return 10 + (t / 100) * 140;
+  return 5 + (t / 100) * 75;
 }
 
 function colorDistance(r: number, g: number, b: number, target: RgbColor): number {
@@ -115,9 +115,25 @@ function smoothstep(value: number): number {
   return t * t * (3 - 2 * t);
 }
 
+function rgbToYuv(r: number, g: number, b: number) {
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const u = -0.168736 * r - 0.331264 * g + 0.5 * b + 128;
+  const v = 0.5 * r - 0.418688 * g - 0.081312 * b + 128;
+  return { y, u, v };
+}
+
+function rgbToHsvSat(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === 0) return 0;
+  return ((max - min) / max) * 100;
+}
+
 /**
  * Seberapa mirip pixel dengan warna yang dipick user.
- * Hanya berdasarkan warna pick — tidak ada logika khusus hijau/putih.
+ * Menggunakan perbandingan jarak dalam ruang warna YUV (YCbCr) dan kejenuhan HSV.
+ * Chrominance (1.5) & Saturation (1.5) diberi bobot besar agar warna asli yang berbeda tetap terjaga,
+ * sedangkan Luminance (0.15) diberi bobot kecil agar bayangan/tekstur warna pick tetap terhapus.
  */
 function colorMatchScore(
   r: number,
@@ -125,10 +141,17 @@ function colorMatchScore(
   b: number,
   target: RgbColor,
 ): number {
-  const euclidean = colorDistance(r, g, b, target);
-  const maxChannel = maxChannelDistance(r, g, b, target);
-  // Kombinasi jarak penuh + selisih channel terbesar (tahan kompresi JPEG).
-  return euclidean * 0.72 + maxChannel * 0.55;
+  const pYuv = rgbToYuv(r, g, b);
+  const tYuv = rgbToYuv(target.r, target.g, target.b);
+
+  const chromaDist = Math.sqrt((pYuv.u - tYuv.u) ** 2 + (pYuv.v - tYuv.v) ** 2);
+  const lumaDist = Math.abs(pYuv.y - tYuv.y);
+
+  const pSat = rgbToHsvSat(r, g, b);
+  const tSat = rgbToHsvSat(target.r, target.g, target.b);
+  const satDist = Math.abs(pSat - tSat);
+
+  return chromaDist * 1.5 + lumaDist * 0.15 + satDist * 1.5;
 }
 
 function matchThresholds(tolerance: number): { remove: number; keep: number } {
